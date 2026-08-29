@@ -55,7 +55,7 @@ export ARCADE_USER_ID='you@example.com'
 
 If the server wants a static header and no `Bearer ` prefix, drop the word `Bearer` and keep `${secret:API_KEY}`. If it wants OAuth instead of a static key, omit `Authorization` and add an `auth.oauth` block. See [scenario.md](scenario.md).
 
-Some fronts reject Go's default User-Agent (Cloudflare 1010). Set `User-Agent` in `target.headers` if initialize comes back as HTTP 403 with a browser-signature error.
+The client sends `User-Agent: sledge/0.0.0-dev` unless you set `User-Agent` in `target.headers`. That is enough to get past Cloudflare 1010 on fronts that reject Go's default. Override it if a host wants a different string.
 
 ## What a good run looks like
 
