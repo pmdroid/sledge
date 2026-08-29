@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/sledge-logo.png" alt="sledge" width="560">
+</p>
+
 # sledge
 
 `sledge` load-tests MCP servers over Streamable HTTP. Custom headers and OAuth are first-class. It is a Go CLI, not a k6 wrapper.
