@@ -235,7 +235,7 @@ func (w *world) initialize() error {
 		"id":      1,
 		"method":  "initialize",
 		"params": map[string]any{
-			"protocolVersion": "2025-03-26",
+			"protocolVersion": "2026-07-28",
 			"capabilities":    map[string]any{},
 			"clientInfo":      map[string]any{"name": "harness", "version": "0"},
 		},

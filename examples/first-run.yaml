@@ -1,0 +1,20 @@
+# 1 VU smoke scenario. Point it at a real server with env vars.
+# Do not put hostnames, tokens, or keys in this file.
+version: 1
+target:
+  url: ${env:MCP_URL}
+  transport: streamable-http
+  headers:
+    Authorization: Bearer ${secret:API_KEY}
+    Arcade-User-ID: ${env:ARCADE_USER_ID}
+workload:
+  model: closed
+  vus: 1
+  duration: 30s
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+thresholds:
+  auth_errors: "== 0"

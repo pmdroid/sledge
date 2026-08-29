@@ -235,6 +235,27 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 	switch method {
 	case "initialize":
+		requested := ""
+		if params, ok := msg["params"].(map[string]any); ok {
+			requested, _ = params["protocolVersion"].(string)
+		}
+		if !supportedProtocol(requested) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"error": map[string]any{
+					"code":    -32022,
+					"message": "Unsupported protocol version",
+					"data": map[string]any{
+						"requested": requested,
+						"supported": []string{"2026-07-28", "2025-11-25"},
+					},
+				},
+			})
+			return
+		}
 		sid = newID()
 		s.mu.Lock()
 		s.sessions[sid] = struct{}{}
@@ -247,7 +268,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			"jsonrpc": "2.0",
 			"id":      id,
 			"result": map[string]any{
-				"protocolVersion": "2025-03-26",
+				"protocolVersion": requested,
 				"capabilities":    map[string]any{"tools": map[string]any{}},
 				"serverInfo":      map[string]any{"name": "fake-mcp", "version": "0.0.0"},
 			},
@@ -371,6 +392,10 @@ func flush(w http.ResponseWriter) {
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func supportedProtocol(v string) bool {
+	return v == "2026-07-28" || v == "2025-11-25"
 }
 
 func newID() string {

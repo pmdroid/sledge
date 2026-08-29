@@ -1,17 +1,17 @@
 # mcp-loadtester
 
-`mcpload` is a custom Go CLI that load-tests MCP servers over Streamable HTTP. Module `github.com/pmdroid/mcp-loadtester`. It is not a k6 wrapper.
+`mcpload` load-tests MCP servers over Streamable HTTP. Custom headers and OAuth are first-class. It is a Go CLI, not a k6 wrapper.
 
-v1 is closed-model VUs, implicit initialize, one session per VU by default, per-VU HTTP clients by default, shared OAuth token by default. Custom headers and OAuth are first-class.
+Closed-model VUs. One session per VU by default. Per-VU HTTP clients by default. Shared OAuth token by default. Initialize is implicit.
 
-The official Go MCP SDK is not on the request path. The seam is `Session`: Initialize, Call, Close.
+Start here: [docs/getting-started.md](docs/getting-started.md). First run is 1 VU. Keep real URLs and keys out of git.
 
 ## Install
 
 Go 1.22+.
 
 ```bash
-go install github.com/pmdroid/mcp-loadtester/cmd/mcpload@feat/v1
+go install github.com/pmdroid/mcp-loadtester/cmd/mcpload@main
 ```
 
 From a clone:
@@ -19,9 +19,7 @@ From a clone:
 ```bash
 git clone https://github.com/pmdroid/mcp-loadtester.git
 cd mcp-loadtester
-git checkout feat/v1
 make build          # writes bin/mcpload
-# or: go build -o bin/mcpload ./cmd/mcpload
 ```
 
 `mcpload version` prints `0.0.0-dev`.
@@ -237,6 +235,13 @@ Do not turn it on against a real IdP unless you mean to leak tokens.
 ## Not v1
 
 stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenarios, JSONPath, Prometheus, JUnit, interactive authorization-code.
+
+## Docs
+
+- [Getting started](docs/getting-started.md)
+- [Scenario YAML](docs/scenario.md)
+- [Tests](docs/testing.md)
+- [First-run example](examples/first-run.yaml)
 
 ## Tests
 

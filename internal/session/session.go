@@ -12,7 +12,40 @@ import (
 	"time"
 )
 
-const protocolVersion = "2025-03-26"
+const (
+	Proto20260728 = "2026-07-28"
+	Proto20251125 = "2025-11-25"
+
+	RPCUnsupportedVersion = -32022
+)
+
+// SupportedVersions is newest first. Initialize offers the first entry, then
+// retries with the newest version the server listed that we still know.
+var SupportedVersions = []string{Proto20260728, Proto20251125}
+
+func LatestVersion() string { return SupportedVersions[0] }
+
+func SupportsVersion(v string) bool {
+	for _, s := range SupportedVersions {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+func PickVersion(server []string) string {
+	have := make(map[string]struct{}, len(server))
+	for _, s := range server {
+		have[s] = struct{}{}
+	}
+	for _, s := range SupportedVersions {
+		if _, ok := have[s]; ok {
+			return s
+		}
+	}
+	return ""
+}
 
 const (
 	TagTransport = "transport"
@@ -88,6 +121,7 @@ type Client struct {
 	auth    func(context.Context, *http.Request) error
 	id      string
 	nextID  int64
+	proto   string
 }
 
 func New(cfg Config) *Client {
@@ -99,26 +133,65 @@ func New(cfg Config) *Client {
 	for k, v := range cfg.Headers {
 		h[k] = v
 	}
-	return &Client{url: cfg.URL, headers: h, client: cli, auth: cfg.Auth, nextID: 1}
+	return &Client{url: cfg.URL, headers: h, client: cli, auth: cfg.Auth, nextID: 1, proto: LatestVersion()}
 }
 
 func (c *Client) ID() string {
 	return c.id
 }
 
+func (c *Client) Protocol() string {
+	return c.version()
+}
+
+func (c *Client) version() string {
+	if c.proto != "" {
+		return c.proto
+	}
+	return LatestVersion()
+}
+
 func (c *Client) Initialize(ctx context.Context) (*Result, error) {
-	params := map[string]any{
-		"protocolVersion": protocolVersion,
+	ver := c.version()
+	res, err := c.initOnce(ctx, ver)
+	if err != nil {
+		next := PickVersion(offeredVersions(res))
+		if next == "" && ver == Proto20260728 && TagOf(err) == TagProtocol {
+			next = Proto20251125
+		}
+		if next == "" || next == ver {
+			return res, err
+		}
+		c.proto = next
+		res, err = c.initOnce(ctx, next)
+		if err != nil {
+			return res, err
+		}
+	}
+	got, nerr := negotiatedVersion(res.Result)
+	if nerr != nil {
+		return res, &Error{Tag: TagProtocol, Err: nerr}
+	}
+	if !SupportsVersion(got) {
+		return res, &Error{Tag: TagProtocol, Err: fmt.Errorf("unsupported protocol version %q", got)}
+	}
+	c.proto = got
+	return res, nil
+}
+
+func (c *Client) initOnce(ctx context.Context, ver string) (*Result, error) {
+	return c.Call(ctx, "initialize", map[string]any{
+		"protocolVersion": ver,
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": "mcpload", "version": "0.0.0-dev"},
-	}
-	return c.Call(ctx, "initialize", params, time.Time{})
+	}, time.Time{})
 }
 
 func (c *Client) Call(ctx context.Context, method string, params any, intended time.Time) (*Result, error) {
 	if params == nil {
 		params = map[string]any{}
 	}
+	params = c.attachMeta(params)
 	id := c.nextID
 	c.nextID++
 	payload, err := json.Marshal(map[string]any{
@@ -137,6 +210,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, intended t
 	if err := c.applyHeaders(ctx, req); err != nil {
 		return nil, err
 	}
+	c.applyMethodHeaders(req, method, params)
 	actual := time.Now()
 	if intended.IsZero() {
 		intended = actual
@@ -160,12 +234,19 @@ func (c *Client) Call(ctx context.Context, method string, params any, intended t
 	if readErr != nil {
 		return res, &Error{Tag: TagTransport, Err: readErr}
 	}
-	if err := classifyStatus(resp.StatusCode); err != nil {
-		return res, err
-	}
+	statusErr := classifyStatus(resp.StatusCode)
 	msg, rpcErr, perr := decodeRPC(res.ContentType, body, id)
 	res.Message = msg
 	res.RPCError = rpcErr
+	if statusErr != nil {
+		if rpcErr != nil {
+			return res, &Error{Tag: TagProtocol, Err: rpcErr}
+		}
+		if perr != nil {
+			return res, statusErr
+		}
+		return res, statusErr
+	}
 	if perr != nil {
 		return res, perr
 	}
@@ -211,7 +292,7 @@ func (c *Client) applyHeaders(ctx context.Context, req *http.Request) error {
 		req.Header.Set(k, v)
 	}
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("MCP-Protocol-Version", protocolVersion)
+	req.Header.Set("MCP-Protocol-Version", c.version())
 	if req.Body != nil && req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -236,10 +317,71 @@ func classifyStatus(code int) error {
 	if code >= 400 {
 		return &Error{Tag: TagProtocol, Err: fmt.Errorf("http %d", code)}
 	}
-	if code != http.StatusOK && code != http.StatusNoContent {
+	if code != http.StatusOK && code != http.StatusAccepted && code != http.StatusNoContent {
 		return &Error{Tag: TagProtocol, Err: fmt.Errorf("http %d", code)}
 	}
 	return nil
+}
+
+func (c *Client) applyMethodHeaders(req *http.Request, method string, params any) {
+	if c.version() != Proto20260728 {
+		return
+	}
+	req.Header.Set("Mcp-Method", method)
+	if m, ok := params.(map[string]any); ok {
+		if name, ok := m["name"].(string); ok && name != "" {
+			req.Header.Set("Mcp-Name", name)
+		}
+	}
+}
+
+func (c *Client) attachMeta(params any) any {
+	if c.version() != Proto20260728 {
+		return params
+	}
+	out := map[string]any{}
+	if m, ok := params.(map[string]any); ok {
+		for k, v := range m {
+			out[k] = v
+		}
+	} else if params != nil {
+		return params
+	}
+	out["_meta"] = map[string]any{
+		"io.modelcontextprotocol/protocolVersion":     c.version(),
+		"io.modelcontextprotocol/clientCapabilities": map[string]any{},
+		"io.modelcontextprotocol/clientInfo":          map[string]any{"name": "mcpload", "version": "0.0.0-dev"},
+	}
+	return out
+}
+
+func offeredVersions(res *Result) []string {
+	if res == nil || res.RPCError == nil || res.RPCError.Code != RPCUnsupportedVersion {
+		return nil
+	}
+	var data struct {
+		Supported []string `json:"supported"`
+	}
+	if err := json.Unmarshal(res.RPCError.Data, &data); err != nil {
+		return nil
+	}
+	return data.Supported
+}
+
+func negotiatedVersion(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 {
+		return "", errors.New("initialize result missing protocolVersion")
+	}
+	var out struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	if out.ProtocolVersion == "" {
+		return "", errors.New("initialize result missing protocolVersion")
+	}
+	return out.ProtocolVersion, nil
 }
 
 func decodeRPC(ct string, body []byte, wantID int64) (json.RawMessage, *RPCError, error) {
