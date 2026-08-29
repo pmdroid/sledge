@@ -36,6 +36,18 @@ func TestInsecureKeepsToken(t *testing.T) {
 	}
 }
 
+func TestScrub(t *testing.T) {
+	l := New(false)
+	l.Watch("sekrit")
+	got := l.Scrub("Bearer sekrit")
+	if strings.Contains(got, "sekrit") {
+		t.Fatalf("%q", got)
+	}
+	if !strings.Contains(got, "[redacted]") {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestWarnInsecure(t *testing.T) {
 	var b bytes.Buffer
 	WarnInsecure(&b)

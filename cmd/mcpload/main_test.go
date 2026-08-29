@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
 )
@@ -187,6 +188,81 @@ steps:
 	}
 	if !strings.Contains(out.String(), "http_pool: shared") {
 		t.Fatalf("summary %q", out.String())
+	}
+}
+
+func TestRunP95ThresholdExit1(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON, Delay: 40 * time.Millisecond})
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.yaml")
+	body := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 1
+  duration: 250ms
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+thresholds:
+  p95_latency: "< 1ms"
+`, srv.URL())
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outFile := filepath.Join(dir, "out.json")
+	stdout = ioDiscard()
+	stderr = ioDiscard()
+	t.Cleanup(restoreIO)
+	code := run([]string{"run", "--out", outFile, path})
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	raw, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"intended"`) || !strings.Contains(string(raw), `"actual"`) {
+		t.Fatalf("json %s", raw)
+	}
+}
+
+func TestRunOutFileAlias(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.yaml")
+	body := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 1
+  duration: 150ms
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`, srv.URL())
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outFile := filepath.Join(dir, "report.json")
+	stdout = ioDiscard()
+	stderr = ioDiscard()
+	t.Cleanup(restoreIO)
+	code := run([]string{"run", "--out-file", outFile, path})
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if _, err := os.Stat(outFile); err != nil {
+		t.Fatal(err)
 	}
 }
 

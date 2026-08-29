@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -50,6 +51,9 @@ func cmdRun(args []string) int {
 	dur := fs.String("duration", "", "")
 	shared := fs.Bool("http-shared-pool", false, "")
 	insecure := fs.Bool("insecure-log-secrets", false, "")
+	var outPath string
+	fs.StringVar(&outPath, "out", "", "")
+	fs.StringVar(&outPath, "out-file", "", "")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -69,19 +73,31 @@ func cmdRun(args []string) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	_, err = runner.Run(context.Background(), runner.Config{
+	sum, err := runner.Run(context.Background(), runner.Config{
 		Scenario:           sc,
 		SharedPool:         *shared || sc.HTTP.Pool == "shared",
 		InsecureLogSecrets: *insecure,
 		Stdout:             stdout,
 		Stderr:             stderr,
+		OutPath:            outPath,
 	})
+	return exitCode(sum, err)
+}
+
+func exitCode(sum *runner.Summary, err error) int {
 	if err != nil {
 		fmt.Fprintln(stderr, err)
+		var cerr *runner.ConfigError
+		if errors.As(err, &cerr) {
+			return 2
+		}
 		if session.TagOf(err) == session.TagAuth {
 			return 2
 		}
 		return 3
+	}
+	if sum != nil && sum.Failed {
+		return 1
 	}
 	return 0
 }

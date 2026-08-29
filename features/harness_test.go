@@ -48,6 +48,8 @@ type world struct {
 	runOut       *bytes.Buffer
 	runSum       *runner.Summary
 	runErr       error
+	runCode      int
+	secretTok    string
 }
 
 func (w *world) close() {
@@ -92,6 +94,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	initSession(sc, w)
 	initOAuth(sc, w)
 	initRunner(sc, w)
+	initMetrics(sc, w)
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		w.reset()
 		return ctx, nil

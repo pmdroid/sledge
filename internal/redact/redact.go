@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -63,6 +64,19 @@ func (l *Logger) JSONReport() ([]byte, error) {
 	return json.Marshal(map[string]any{"debug": debug})
 }
 
+func (l *Logger) Insecure() bool {
+	return l != nil && l.insecure
+}
+
+func (l *Logger) Scrub(s string) string {
+	if l == nil {
+		return s
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.scrubLocked(s)
+}
+
 func (l *Logger) Contains(s string) bool {
 	if l == nil || s == "" {
 		return false
@@ -83,7 +97,10 @@ func (l *Logger) scrubLocked(msg string) string {
 	if l.insecure {
 		return msg
 	}
-	for _, s := range l.secrets {
+	secs := make([]string, len(l.secrets))
+	copy(secs, l.secrets)
+	sort.Slice(secs, func(i, j int) bool { return len(secs[i]) > len(secs[j]) })
+	for _, s := range secs {
 		if s != "" {
 			msg = strings.ReplaceAll(msg, s, "[redacted]")
 		}

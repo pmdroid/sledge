@@ -26,6 +26,7 @@ const (
 type Options struct {
 	Mode      Mode
 	SlowDelay time.Duration
+	Delay     time.Duration
 }
 
 type Recorded struct {
@@ -39,6 +40,7 @@ type Server struct {
 	http     *httptest.Server
 	mode     Mode
 	slow     time.Duration
+	delay    time.Duration
 	mu       sync.Mutex
 	reqs     []Recorded
 	sessions map[string]struct{}
@@ -52,6 +54,7 @@ func New(opts Options) *Server {
 	s := &Server{
 		mode:     opts.Mode,
 		slow:     opts.SlowDelay,
+		delay:    opts.Delay,
 		sessions: map[string]struct{}{},
 		seen:     map[string]struct{}{},
 	}
@@ -155,6 +158,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+	}
+	if s.delay > 0 && r.Method != http.MethodDelete {
+		time.Sleep(s.delay)
 	}
 	if r.Method == http.MethodDelete {
 		sid := r.Header.Get("Mcp-Session-Id")

@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/pmdroid/mcp-loadtester/internal/interp"
+	"github.com/pmdroid/mcp-loadtester/internal/metrics"
 	"github.com/pmdroid/mcp-loadtester/internal/oauth"
+	"github.com/pmdroid/mcp-loadtester/internal/redact"
 	"github.com/pmdroid/mcp-loadtester/internal/scenario"
 	"github.com/pmdroid/mcp-loadtester/internal/secret"
 	"github.com/pmdroid/mcp-loadtester/internal/session"
@@ -26,37 +28,33 @@ type Config struct {
 	LookupEnv          func(string) (string, bool)
 	Stdout             io.Writer
 	Stderr             io.Writer
+	JSON               io.Writer
+	OutPath            string
+	Log                *redact.Logger
 }
 
 type Summary struct {
-	VUs            int           `json:"vus"`
-	Duration       time.Duration `json:"duration"`
-	Iterations     int64         `json:"iterations"`
-	PeakSessions   int           `json:"peak_sessions"`
-	SaturatedVUs   int           `json:"saturated_vus"`
-	UniqueSessions int           `json:"unique_sessions"`
-	HTTPClients    int           `json:"http_clients"`
-	HTTPPool       string        `json:"http_pool"`
-	SetupCount     int64         `json:"setup_count"`
-	Errors         int64         `json:"errors"`
-	SessionIDs     []string      `json:"-"`
-}
-
-func (s Summary) WriteText(w io.Writer) {
-	if w == nil {
-		return
-	}
-	fmt.Fprintf(w, "closed model\n")
-	fmt.Fprintf(w, "vus: %d\n", s.VUs)
-	fmt.Fprintf(w, "duration: %s\n", s.Duration)
-	fmt.Fprintf(w, "iterations: %d\n", s.Iterations)
-	fmt.Fprintf(w, "peak_sessions: %d\n", s.PeakSessions)
-	fmt.Fprintf(w, "saturated_vus: %d\n", s.SaturatedVUs)
-	fmt.Fprintf(w, "unique_sessions: %d\n", s.UniqueSessions)
-	fmt.Fprintf(w, "http_pool: %s\n", s.HTTPPool)
-	fmt.Fprintf(w, "http_clients: %d\n", s.HTTPClients)
-	fmt.Fprintf(w, "setup: %d\n", s.SetupCount)
-	fmt.Fprintf(w, "errors: %d\n", s.Errors)
+	VUs            int                     `json:"vus"`
+	Duration       time.Duration           `json:"duration"`
+	Iterations     int64                   `json:"iterations"`
+	PeakSessions   int                     `json:"peak_sessions"`
+	SaturatedVUs   int                     `json:"saturated_vus"`
+	UniqueSessions int                     `json:"unique_sessions"`
+	HTTPClients    int                     `json:"http_clients"`
+	HTTPPool       string                  `json:"http_pool"`
+	SetupCount     int64                   `json:"setup_count"`
+	Errors         int64                   `json:"errors"`
+	ThroughputRPS  float64                 `json:"throughput_rps"`
+	ErrorRate      float64                 `json:"error_rate"`
+	Failures       metrics.Failures        `json:"failures"`
+	P95Latency     time.Duration           `json:"-"`
+	Setup          metrics.Pair            `json:"setup"`
+	Operations     map[string]metrics.Pair `json:"operations"`
+	Tools          map[string]metrics.Pair `json:"tools"`
+	Thresholds     []metrics.Result        `json:"thresholds"`
+	Failed         bool                    `json:"failed"`
+	JSON           []byte                  `json:"-"`
+	SessionIDs     []string                `json:"-"`
 }
 
 func Run(ctx context.Context, cfg Config) (*Summary, error) {
@@ -71,6 +69,11 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 	if lookup == nil {
 		lookup = os.LookupEnv
 	}
+	log := cfg.Log
+	if log == nil {
+		log = redact.New(cfg.InsecureLogSecrets)
+	}
+	coll := metrics.NewCollector()
 	pool := sc.HTTP.Pool
 	if cfg.SharedPool {
 		pool = "shared"
@@ -95,17 +98,22 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		if err != nil {
 			return nil, err
 		}
+		cs := bound.Reveal()
+		rts := rt.Reveal()
+		log.Watch(cs)
+		log.Watch(rts)
 		mgr, err := oauth.New(oauth.Config{
 			Grant:              oa.Grant,
 			TokenURL:           oa.TokenURL.Reveal(),
 			ClientID:           oa.ClientID.Reveal(),
-			ClientSecret:       secret.New("CLIENT_SECRET", bound.Reveal()),
-			RefreshToken:       secret.New("REFRESH_TOKEN", rt.Reveal()),
+			ClientSecret:       secret.New("CLIENT_SECRET", cs),
+			RefreshToken:       secret.New("REFRESH_TOKEN", rts),
 			Scopes:             oa.Scopes,
 			TokenScope:         oa.TokenScope,
 			RefreshSkew:        oa.RefreshSkew,
 			Warn:               cfg.Stderr,
-			InsecureLogSecrets: cfg.InsecureLogSecrets,
+			InsecureLogSecrets: false,
+			Log:                log,
 			Client:             shared,
 		})
 		if err != nil {
@@ -122,15 +130,15 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		HTTPPool:    pool,
 	}
 	var (
-		mu       sync.Mutex
-		live     int
-		peak     int
-		ids      = map[string]struct{}{}
-		sat      int
-		iters    atomic.Int64
-		setups   atomic.Int64
-		errs     atomic.Int64
-		wg       sync.WaitGroup
+		mu     sync.Mutex
+		live   int
+		peak   int
+		ids    = map[string]struct{}{}
+		sat    int
+		iters  atomic.Int64
+		setups atomic.Int64
+		errs   atomic.Int64
+		wg     sync.WaitGroup
 	)
 	trackOpen := func(id string) {
 		mu.Lock()
@@ -163,6 +171,8 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 				shared: shared,
 				tok:    tok,
 				lookup: lookup,
+				log:    log,
+				coll:   coll,
 				open:   trackOpen,
 				close:  trackClose,
 				iters:  &iters,
@@ -190,7 +200,35 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		sum.SessionIDs = append(sum.SessionIDs, id)
 	}
 	mu.Unlock()
+	snap := coll.Snapshot()
+	sum.Failures = snap.Failures
+	sum.ErrorRate = snap.ErrorRate
+	sum.P95Latency = snap.P95
+	sum.Setup = snap.Setup
+	sum.Operations = snap.Operations
+	sum.Tools = snap.Tools
+	if sum.Duration > 0 {
+		sum.ThroughputRPS = float64(snap.Ops) / sum.Duration.Seconds()
+	}
+	th, err := metrics.Evaluate(sc.Thresholds, snap)
+	if err != nil {
+		return sum, &ConfigError{err: err}
+	}
+	sum.Thresholds = th
+	sum.Failed = metrics.Failed(th)
 	sum.WriteText(cfg.Stdout)
+	raw, err := sum.marshalJSON(log)
+	if err != nil {
+		return sum, err
+	}
+	if cfg.JSON != nil {
+		if _, err := cfg.JSON.Write(raw); err != nil {
+			return sum, err
+		}
+	}
+	if err := writeOutFile(cfg.OutPath, raw); err != nil {
+		return sum, err
+	}
 	return sum, nil
 }
 
@@ -215,6 +253,8 @@ type vuOpts struct {
 	shared *http.Client
 	tok    *oauth.Manager
 	lookup func(string) (string, bool)
+	log    *redact.Logger
+	coll   *metrics.Collector
 	open   func(string)
 	close  func()
 	iters  *atomic.Int64
@@ -274,7 +314,10 @@ func runVU(ctx context.Context, o vuOpts) bool {
 			sess = newClient(o, httpClient, vu, iterS)
 			res, err := sess.Initialize(ctx)
 			o.setups.Add(1)
-			_ = res
+			if o.coll != nil {
+				in, ac := latencies(res)
+				o.coll.RecordSetup(in, ac, err)
+			}
 			if err != nil {
 				if ctx.Err() == nil {
 					o.errs.Add(1)
@@ -319,7 +362,11 @@ func newClient(o vuOpts, httpClient *http.Client, vu, iter string) *session.Clie
 		if err != nil {
 			continue
 		}
-		headers[k] = rv.Reveal()
+		val := rv.Reveal()
+		headers[k] = val
+		if o.log != nil {
+			o.log.Watch(val)
+		}
 	}
 	cfg := session.Config{
 		URL:     o.sc.Target.URL.Reveal(),
@@ -351,23 +398,31 @@ func runSteps(ctx context.Context, sess *session.Client, o vuOpts, vu, iter stri
 		}
 		params, err := bindAny(st.Body, fmt.Sprintf("steps[%d]", i), ictx)
 		if err != nil {
+			berr := &session.Error{Tag: session.TagProtocol, Err: err}
+			if o.coll != nil {
+				o.coll.Fail(berr)
+			}
 			if first == nil {
-				first = &session.Error{Tag: session.TagProtocol, Err: err}
+				first = berr
 			}
 			continue
 		}
 		intended := time.Now()
 		res, err := sess.Call(ctx, st.Method, params, intended)
+		if err2 := checkExpect(st, res); err2 != nil {
+			if err == nil {
+				err = err2
+			}
+		}
+		if o.coll != nil {
+			in, ac := latencies(res)
+			o.coll.RecordOp(st.Method, toolName(st.Method, params), in, ac, err)
+		}
 		if err != nil {
 			if first == nil {
 				first = err
 			}
 			continue
-		}
-		if err := checkExpect(st, res); err != nil {
-			if first == nil {
-				first = err
-			}
 		}
 	}
 	return first
@@ -399,6 +454,25 @@ func isToolError(raw json.RawMessage) bool {
 		return false
 	}
 	return wrap.IsError
+}
+
+func latencies(res *session.Result) (time.Duration, time.Duration) {
+	if res == nil {
+		return 0, 0
+	}
+	return res.IntendedLatency, res.ActualLatency
+}
+
+func toolName(method string, params any) string {
+	if method != "tools/call" {
+		return ""
+	}
+	m, _ := params.(map[string]any)
+	if m == nil {
+		return ""
+	}
+	s, _ := m["name"].(string)
+	return s
 }
 
 func thinkWait(ctx context.Context, d time.Duration) time.Duration {

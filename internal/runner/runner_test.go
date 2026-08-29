@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -151,6 +152,131 @@ func mustLoad(t *testing.T, y string) *scenario.Scenario {
 		t.Fatal(err)
 	}
 	return sc
+}
+
+func TestP95ThresholdFails(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON, Delay: 40 * time.Millisecond})
+	t.Cleanup(srv.Close)
+	y := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 1
+  duration: 250ms
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+thresholds:
+  p95_latency: "< 1ms"
+`, srv.URL())
+	sc := mustLoad(t, y)
+	var out bytes.Buffer
+	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sum.Failed {
+		t.Fatalf("want failed p95=%s out=%s", sum.P95Latency, out.String())
+	}
+	if !strings.Contains(out.String(), "understates tails") {
+		t.Fatalf("note missing: %s", out.String())
+	}
+	js := string(sum.JSON)
+	if !strings.Contains(js, `"intended"`) || !strings.Contains(js, `"actual"`) {
+		t.Fatalf("json %s", js)
+	}
+}
+
+func TestAuthNotProtocol(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	srv.RequireToken("need-token")
+	sc := mustLoad(t, yamlFor(srv.URL(), 1, "200ms", "0s", "per_vu", "vu", 0))
+	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Failures.Auth == 0 {
+		t.Fatalf("auth %d protocol %d", sum.Failures.Auth, sum.Failures.Protocol)
+	}
+	if sum.Failures.Protocol != 0 {
+		t.Fatalf("protocol %d auth %d", sum.Failures.Protocol, sum.Failures.Auth)
+	}
+}
+
+func TestJSONReportRedactsSecret(t *testing.T) {
+	tok := "super-secret-token-xyz"
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	srv.RequireToken(tok)
+	y := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+  headers:
+    Authorization: Bearer %s
+workload:
+  model: closed
+  vus: 1
+  duration: 200ms
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`, srv.URL(), tok)
+	sc := mustLoad(t, y)
+	outPath := t.TempDir() + "/report.json"
+	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}, OutPath: outPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(sum.JSON), tok) {
+		t.Fatalf("json leaked %s", sum.JSON)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), tok) {
+		t.Fatalf("file leaked %s", raw)
+	}
+	if !strings.Contains(string(raw), `"intended"`) || !strings.Contains(string(raw), `"actual"`) {
+		t.Fatalf("file %s", raw)
+	}
+}
+
+func TestExpectMaxDurationAssertion(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON, Delay: 30 * time.Millisecond})
+	t.Cleanup(srv.Close)
+	y := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 1
+  duration: 200ms
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+    expect:
+      ok: true
+      max_duration: 1ms
+`, srv.URL())
+	sc := mustLoad(t, y)
+	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Failures.Assertion == 0 {
+		t.Fatalf("assertion %d failures %+v", sum.Failures.Assertion, sum.Failures)
+	}
 }
 
 func TestMissingScenario(t *testing.T) {

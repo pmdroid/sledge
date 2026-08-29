@@ -99,7 +99,15 @@ func (w *world) runScenario() error {
 	})
 	w.runSum = sum
 	w.runErr = err
-	return err
+	w.runCode = 0
+	if err != nil {
+		w.runCode = 3
+		return err
+	}
+	if sum != nil && sum.Failed {
+		w.runCode = 1
+	}
+	return nil
 }
 
 func (w *world) peakAbout(n int) error {
