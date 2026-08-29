@@ -15,22 +15,26 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
+	"github.com/pmdroid/mcp-loadtester/internal/session"
 )
 
 type world struct {
-	mcp        *mcphttp.Server
-	tok        *token.Server
-	client     *http.Client
-	access     string
-	refresh    string
-	oldRefresh string
-	session    string
-	expiresIn  int
-	lastStatus int
-	lastCT     string
-	lastBody   []byte
-	lastHeader http.Header
-	lastErr    error
+	mcp         *mcphttp.Server
+	tok         *token.Server
+	client      *http.Client
+	access      string
+	refresh     string
+	oldRefresh  string
+	session     string
+	expiresIn   int
+	lastStatus  int
+	lastCT      string
+	lastBody    []byte
+	lastHeader  http.Header
+	lastErr     error
+	sessHeaders map[string]string
+	mcpSess     *session.Client
+	lastSessErr error
 }
 
 func (w *world) close() {
@@ -68,6 +72,7 @@ func TestFeatures(t *testing.T) {
 func InitializeScenario(sc *godog.ScenarioContext) {
 	initValidate(sc)
 	w := &world{}
+	initSession(sc, w)
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		w.reset()
 		return ctx, nil

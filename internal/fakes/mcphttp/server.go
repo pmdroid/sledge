@@ -86,12 +86,27 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	})
 	s.mu.Unlock()
 
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if r.URL.Path != "/mcp" {
 		http.NotFound(w, r)
+		return
+	}
+	if r.Method == http.MethodDelete {
+		sid := r.Header.Get("Mcp-Session-Id")
+		s.mu.Lock()
+		_, ok := s.sessions[sid]
+		if ok {
+			delete(s.sessions, sid)
+		}
+		s.mu.Unlock()
+		if sid == "" || !ok {
+			http.Error(w, "missing or unknown session", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
