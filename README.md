@@ -2,7 +2,7 @@
 
 CLI: `mcpload`. Load-tests MCP servers over Streamable HTTP. Custom headers and OAuth are first-class.
 
-v1 is specified in GitHub issues on this repo. Closed-model VUs, one session per VU, per-VU HTTP clients. Shared OAuth token by default. No k6 wrapper.
+v1: [tracking](https://github.com/pmdroid/mcp-loadtester/issues/9). Closed-model VUs, one session per VU, per-VU HTTP clients. Shared OAuth token by default. No k6 wrapper.
 
 ## Not v1
 
