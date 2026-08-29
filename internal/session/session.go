@@ -98,6 +98,7 @@ type Result struct {
 	Message         json.RawMessage
 	Result          json.RawMessage
 	RPCError        *RPCError
+	WWWAuthenticate string
 	IntendedLatency time.Duration
 	ActualLatency   time.Duration
 }
@@ -155,19 +156,24 @@ func (c *Client) version() string {
 func (c *Client) Initialize(ctx context.Context) (*Result, error) {
 	ver := c.version()
 	res, err := c.initOnce(ctx, ver)
-	if err != nil {
+	if err != nil && ver == Proto20260728 && TagOf(err) == TagProtocol {
+		if dres, derr := c.discover(ctx); derr == nil {
+			if got, nerr := negotiatedVersion(dres.Result); nerr == nil && got == Proto20260728 {
+				c.proto = Proto20260728
+				return dres, nil
+			}
+		}
 		next := PickVersion(offeredVersions(res))
-		if next == "" && ver == Proto20260728 && TagOf(err) == TagProtocol {
+		if next == "" {
 			next = Proto20251125
 		}
-		if next == "" || next == ver {
-			return res, err
+		if next != ver {
+			c.proto = next
+			res, err = c.initOnce(ctx, next)
 		}
-		c.proto = next
-		res, err = c.initOnce(ctx, next)
-		if err != nil {
-			return res, err
-		}
+	}
+	if err != nil {
+		return res, err
 	}
 	got, nerr := negotiatedVersion(res.Result)
 	if nerr != nil {
@@ -177,7 +183,14 @@ func (c *Client) Initialize(ctx context.Context) (*Result, error) {
 		return res, &Error{Tag: TagProtocol, Err: fmt.Errorf("unsupported protocol version %q", got)}
 	}
 	c.proto = got
+	if c.proto == Proto20251125 {
+		_ = c.Notify(ctx, "notifications/initialized", map[string]any{})
+	}
 	return res, nil
+}
+
+func (c *Client) discover(ctx context.Context) (*Result, error) {
+	return c.Call(ctx, "server/discover", map[string]any{}, time.Time{})
 }
 
 func (c *Client) initOnce(ctx context.Context, ver string) (*Result, error) {
@@ -226,6 +239,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, intended t
 	res := &Result{
 		ContentType:     resp.Header.Get("Content-Type"),
 		Body:            body,
+		WWWAuthenticate: resp.Header.Get("WWW-Authenticate"),
 		IntendedLatency: done.Sub(intended),
 		ActualLatency:   done.Sub(actual),
 	}
@@ -265,7 +279,8 @@ func (c *Client) Call(ctx context.Context, method string, params any, intended t
 }
 
 func (c *Client) Close(ctx context.Context) error {
-	if c.id == "" {
+	if c.id == "" || c.version() == Proto20260728 {
+		c.id = ""
 		return nil
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.url, nil)
@@ -288,6 +303,39 @@ func (c *Client) Close(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) Notify(ctx context.Context, method string, params any) error {
+	if params == nil {
+		params = map[string]any{}
+	}
+	params = c.attachMeta(params)
+	payload, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"method":  method,
+		"params":  params,
+	})
+	if err != nil {
+		return &Error{Tag: TagProtocol, Err: err}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(payload))
+	if err != nil {
+		return &Error{Tag: TagTransport, Err: err}
+	}
+	if err := c.applyHeaders(ctx, req); err != nil {
+		return err
+	}
+	c.applyMethodHeaders(req, method, params)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return &Error{Tag: TagTransport, Err: err}
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if err := classifyStatus(resp.StatusCode); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) applyHeaders(ctx context.Context, req *http.Request) error {
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
@@ -300,7 +348,7 @@ func (c *Client) applyHeaders(ctx context.Context, req *http.Request) error {
 	if req.Body != nil && req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if c.id != "" {
+	if c.id != "" && c.version() != Proto20260728 {
 		req.Header.Set("Mcp-Session-Id", c.id)
 	}
 	if c.auth != nil {

@@ -120,6 +120,9 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	sc.Step(`^a fake MCP server using JSON responses$`, func() error {
 		return w.startMCP(mcphttp.Options{Mode: mcphttp.ModeJSON})
 	})
+	sc.Step(`^a fake MCP server using JSON responses that only supports "([^"]*)"$`, func(ver string) error {
+		return w.startMCP(mcphttp.Options{Mode: mcphttp.ModeJSON, Versions: []string{ver}})
+	})
 	sc.Step(`^a fake MCP server using SSE responses$`, func() error {
 		return w.startMCP(mcphttp.Options{Mode: mcphttp.ModeSSE})
 	})
@@ -138,6 +141,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	sc.Step(`^the token endpoint recorded (\d+) requests?$`, w.tokenRecorded)
 	sc.Step(`^the MCP server recorded (\d+) requests$`, w.mcpRecorded)
 	sc.Step(`^subsequent MCP requests carry Mcp-Session-Id$`, w.sessionOnLaterRequests)
+	sc.Step(`^subsequent MCP requests omit Mcp-Session-Id$`, w.sessionOmittedOnLaterRequests)
 	sc.Step(`^the last MCP response is application/json$`, func() error {
 		return w.contentTypeHas("application/json")
 	})
@@ -323,15 +327,45 @@ func (w *world) mcpRecorded(n int) error {
 
 func (w *world) sessionOnLaterRequests() error {
 	reqs := w.mcp.Requests()
-	if len(reqs) < 2 {
-		return fmt.Errorf("need at least 2 mcp requests")
-	}
 	if w.session == "" {
 		return fmt.Errorf("empty session id")
 	}
-	for i, rec := range reqs[1:] {
+	var later int
+	for i, rec := range reqs {
+		if rec.Method == http.MethodDelete {
+			if rec.Header.Get("Mcp-Session-Id") != w.session {
+				return fmt.Errorf("DELETE missing session")
+			}
+			continue
+		}
+		if rec.Method != http.MethodPost {
+			continue
+		}
+		var msg map[string]any
+		_ = json.Unmarshal(rec.Body, &msg)
+		method, _ := msg["method"].(string)
+		if method == "initialize" || method == "server/discover" {
+			continue
+		}
+		later++
 		if rec.Header.Get("Mcp-Session-Id") != w.session {
-			return fmt.Errorf("request %d missing session", i+1)
+			return fmt.Errorf("request %d missing session", i)
+		}
+	}
+	if later == 0 {
+		return fmt.Errorf("no post-initialize requests")
+	}
+	return nil
+}
+
+func (w *world) sessionOmittedOnLaterRequests() error {
+	reqs := w.mcp.Requests()
+	if len(reqs) < 2 {
+		return fmt.Errorf("need at least 2 mcp requests")
+	}
+	for i, rec := range reqs[1:] {
+		if rec.Header.Get("Mcp-Session-Id") != "" {
+			return fmt.Errorf("request %d sent Mcp-Session-Id", i+1)
 		}
 	}
 	return nil
