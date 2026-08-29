@@ -89,13 +89,13 @@ http:
 
 Omit `auth` for static headers only.
 
-`auth.oauth.grant`: `client_credentials` or `refresh_token`. Anything else, including authorization-code: `unknown oauth grant`.
+`auth.oauth.grant`: `client_credentials`, `refresh_token`, `authorization_code`, or `mcp` (`mcp` is an alias for `authorization_code`). Anything else: `unknown oauth grant`.
 
 `token_scope`: `shared` (default) or `per_vu`. `per-vu` is stored as `per_vu`.
 
 `refresh_skew` parses as a Go duration. Empty or zero becomes `30s`.
 
-`client_credentials` requires `client_secret` as text or `${secret:…}`. `refresh_token` requires `refresh_token` the same way.
+`client_credentials` requires `token_url`, `client_id`, and `client_secret` as text or `${secret:…}`. `refresh_token` requires `token_url`, `client_id`, and `refresh_token` the same way. `authorization_code` / `mcp` leave `token_url` and `client_id` optional; `sledge auth` discovers them and stores a refresh token. `sledge run` loads that store (or a YAML `refresh_token` if you set one).
 
 ## Workload
 

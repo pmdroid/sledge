@@ -100,6 +100,27 @@ Feature: scenario YAML validate
     When I validate the scenario
     Then validation fails with "missing required field"
 
+  Scenario: authorization_code grant needs no token_url
+    Given a scenario file:
+      """
+      version: 1
+      target:
+        url: https://example.com/mcp
+        transport: streamable-http
+      auth:
+        oauth:
+          grant: authorization_code
+          token_scope: shared
+      workload:
+        model: closed
+        vus: 1
+        duration: 1s
+      steps:
+        - tools/list: {}
+      """
+    When I validate the scenario
+    Then validation succeeds
+
   Scenario: arrival-rate is rejected
     Given a scenario file:
       """

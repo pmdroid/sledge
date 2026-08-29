@@ -507,14 +507,15 @@ func validateLoaded(sc *Scenario) error {
 			return fmt.Errorf("missing required field: auth.oauth.grant")
 		}
 		switch oa.Grant {
-		case "client_credentials", "refresh_token":
+		case "client_credentials", "refresh_token", "authorization_code", "mcp":
 		default:
 			return fmt.Errorf("unknown oauth grant %q", oa.Grant)
 		}
-		if oa.TokenURL.String() == "" {
+		code := oa.Grant == "authorization_code" || oa.Grant == "mcp"
+		if !code && oa.TokenURL.String() == "" {
 			return fmt.Errorf("missing required field: auth.oauth.token_url")
 		}
-		if oa.ClientID.String() == "" {
+		if !code && oa.ClientID.String() == "" {
 			return fmt.Errorf("missing required field: auth.oauth.client_id")
 		}
 		if oa.Grant == "client_credentials" && oa.ClientSecret.String() == "" && !oa.ClientSecret.HasSecret() {

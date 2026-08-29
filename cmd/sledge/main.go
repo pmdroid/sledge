@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/pmdroid/sledge/internal/mcpoauth"
 	"github.com/pmdroid/sledge/internal/redact"
 	"github.com/pmdroid/sledge/internal/runner"
 	"github.com/pmdroid/sledge/internal/scenario"
@@ -27,7 +28,7 @@ func main() {
 
 func run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: sledge <run|validate|version> [scenario]")
+		fmt.Fprintln(stderr, "usage: sledge <run|validate|auth|version> [scenario]")
 		return 2
 	}
 	switch args[0] {
@@ -38,6 +39,8 @@ func run(args []string) int {
 		return cmdRun(args[1:])
 	case "validate":
 		return cmdValidate(args[1:])
+	case "auth":
+		return cmdAuth(args[1:])
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		return 2
@@ -115,6 +118,39 @@ func cmdValidate(args []string) int {
 		return 2
 	}
 	if err := scenario.ValidateFile(fs.Arg(0), scenario.Options{VUs: *vus, Duration: *dur}); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	return 0
+}
+
+func cmdAuth(args []string) int {
+	fs := flag.NewFlagSet("auth", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	callback := fs.String("callback", "127.0.0.1:0", "")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.Arg(0) == "" {
+		fmt.Fprintln(stderr, "auth: scenario path required")
+		return 2
+	}
+	sc, err := scenario.LoadFile(fs.Arg(0), scenario.Options{})
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	cfg := mcpoauth.LoginConfig{
+		Resource:   sc.Target.URL.Reveal(),
+		ListenAddr: *callback,
+		Stdout:     stdout,
+		Stderr:     stderr,
+	}
+	if sc.Auth != nil && sc.Auth.OAuth != nil {
+		cfg.ClientID = sc.Auth.OAuth.ClientID.Reveal()
+		cfg.Scopes = sc.Auth.OAuth.Scopes
+	}
+	if _, err := mcpoauth.Login(context.Background(), cfg); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}

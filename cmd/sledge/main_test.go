@@ -266,6 +266,16 @@ steps:
 	}
 }
 
+func TestAuthMissingPath(t *testing.T) {
+	stdout = ioDiscard()
+	stderr = ioDiscard()
+	t.Cleanup(restoreIO)
+	code := run([]string{"auth"})
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	stdout = ioDiscard()
 	stderr = ioDiscard()
