@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
 )
 
 func TestVersion(t *testing.T) {
@@ -39,8 +42,8 @@ func TestInsecureLogSecretsWarns(t *testing.T) {
 	stderr = &errBuf
 	t.Cleanup(restoreIO)
 	code := run([]string{"run", "--insecure-log-secrets", "scenario.yaml"})
-	if code != 0 {
-		t.Fatalf("exit %d, want 0", code)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
 	}
 	if !strings.Contains(errBuf.String(), "WARNING") || !strings.Contains(errBuf.String(), "insecure-log-secrets") {
 		t.Fatalf("stderr %q", errBuf.String())
@@ -57,13 +60,13 @@ func TestValidateMissingPath(t *testing.T) {
 	}
 }
 
-func TestRunWithPath(t *testing.T) {
+func TestRunMissingFile(t *testing.T) {
 	stdout = ioDiscard()
 	stderr = ioDiscard()
 	t.Cleanup(restoreIO)
 	code := run([]string{"run", "scenario.yaml"})
-	if code != 0 {
-		t.Fatalf("exit %d, want 0", code)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
 	}
 }
 
@@ -148,6 +151,43 @@ thresholds:
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestRunAgainstFake(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.yaml")
+	body := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 2
+  duration: 300ms
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`, srv.URL())
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	stdout = &out
+	stderr = ioDiscard()
+	t.Cleanup(restoreIO)
+	code := run([]string{"run", "--vus", "2", "--duration", "300ms", "--http-shared-pool", path})
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "saturated_vus:") {
+		t.Fatalf("summary %q", out.String())
+	}
+	if !strings.Contains(out.String(), "http_pool: shared") {
+		t.Fatalf("summary %q", out.String())
+	}
 }
 
 func TestUnknownCommand(t *testing.T) {

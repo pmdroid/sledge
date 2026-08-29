@@ -32,8 +32,11 @@ type Value struct {
 }
 
 type Context struct {
-	Env  func(string) (string, bool)
-	Vars map[string]string
+	Env       func(string) (string, bool)
+	Vars      map[string]string
+	Secrets   func(string) (string, bool)
+	VU        string
+	Iteration string
 }
 
 func Parse(s string) (Value, error) {
@@ -144,6 +147,26 @@ func (v Value) Resolve(ctx Context) (Value, error) {
 				return Value{}, fmt.Errorf("variable %s is not set", p.name)
 			}
 			out = append(out, part{kind: kindLit, lit: val})
+		case kindSecret:
+			if ctx.Secrets != nil {
+				if val, ok := ctx.Secrets(p.name); ok {
+					out = append(out, part{kind: kindSecret, name: p.name, sec: secret.New(p.name, val)})
+					continue
+				}
+			}
+			out = append(out, p)
+		case kindVUID:
+			if ctx.VU != "" {
+				out = append(out, part{kind: kindLit, lit: ctx.VU})
+				continue
+			}
+			out = append(out, p)
+		case kindIter:
+			if ctx.Iteration != "" {
+				out = append(out, part{kind: kindLit, lit: ctx.Iteration})
+				continue
+			}
+			out = append(out, p)
 		default:
 			out = append(out, p)
 		}

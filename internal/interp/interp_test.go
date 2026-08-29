@@ -38,6 +38,27 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+func TestResolveVUAndSecrets(t *testing.T) {
+	v, err := Parse("vu=${vu.id} i=${iteration} s=${secret:T}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := v.Resolve(Context{
+		VU:        "7",
+		Iteration: "3",
+		Secrets:   func(string) (string, bool) { return "tok", true },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != "vu=7 i=3 s=[redacted]" {
+		t.Fatalf("got %q", got.String())
+	}
+	if got.Reveal() != "vu=7 i=3 s=tok" {
+		t.Fatalf("reveal %q", got.Reveal())
+	}
+}
+
 func TestMissingEnv(t *testing.T) {
 	v, err := Parse("${env:NO_SUCH_MCLOAD_VAR}")
 	if err != nil {

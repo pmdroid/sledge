@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/pmdroid/mcp-loadtester/internal/redact"
+	"github.com/pmdroid/mcp-loadtester/internal/runner"
 	"github.com/pmdroid/mcp-loadtester/internal/scenario"
+	"github.com/pmdroid/mcp-loadtester/internal/session"
 )
 
 const version = "0.0.0-dev"
@@ -43,18 +46,42 @@ func run(args []string) int {
 func cmdRun(args []string) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.Int("vus", 0, "")
-	fs.String("duration", "", "")
+	vus := fs.Int("vus", 0, "")
+	dur := fs.String("duration", "", "")
+	shared := fs.Bool("http-shared-pool", false, "")
 	insecure := fs.Bool("insecure-log-secrets", false, "")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if *insecure {
+		redact.WarnInsecure(stderr)
 	}
 	if fs.Arg(0) == "" {
 		fmt.Fprintln(stderr, "run: scenario path required")
 		return 2
 	}
-	if *insecure {
-		redact.WarnInsecure(stderr)
+	sc, err := scenario.LoadFile(fs.Arg(0), scenario.Options{
+		VUs:        *vus,
+		Duration:   *dur,
+		SharedPool: *shared,
+	})
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	_, err = runner.Run(context.Background(), runner.Config{
+		Scenario:           sc,
+		SharedPool:         *shared || sc.HTTP.Pool == "shared",
+		InsecureLogSecrets: *insecure,
+		Stdout:             stdout,
+		Stderr:             stderr,
+	})
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		if session.TagOf(err) == session.TagAuth {
+			return 2
+		}
+		return 3
 	}
 	return 0
 }

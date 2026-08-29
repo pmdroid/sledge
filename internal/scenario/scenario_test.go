@@ -44,6 +44,32 @@ func TestTokenScopePerVU(t *testing.T) {
 	}
 }
 
+func TestHTTPPool(t *testing.T) {
+	t.Setenv("CLIENT_ID", "client")
+	sc, err := Load(strings.NewReader(validYAML), Options{LookupEnv: os.LookupEnv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.HTTP.Pool != "vu" {
+		t.Fatalf("pool %q", sc.HTTP.Pool)
+	}
+	y := validYAML + "\nhttp:\n  pool: shared\n"
+	sc, err = Load(strings.NewReader(y), Options{LookupEnv: os.LookupEnv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.HTTP.Pool != "shared" {
+		t.Fatalf("pool %q", sc.HTTP.Pool)
+	}
+	sc, err = Load(strings.NewReader(validYAML), Options{SharedPool: true, LookupEnv: os.LookupEnv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.HTTP.Pool != "shared" {
+		t.Fatalf("pool %q", sc.HTTP.Pool)
+	}
+}
+
 func TestCLIOverrides(t *testing.T) {
 	t.Setenv("CLIENT_ID", "client")
 	sc, err := Load(strings.NewReader(validYAML), Options{VUs: 3, Duration: "15s", LookupEnv: os.LookupEnv})

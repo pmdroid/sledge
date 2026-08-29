@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
 	"github.com/pmdroid/mcp-loadtester/internal/oauth"
+	"github.com/pmdroid/mcp-loadtester/internal/runner"
 	"github.com/pmdroid/mcp-loadtester/internal/session"
 )
 
@@ -41,6 +43,11 @@ type world struct {
 	warnBuf      *bytes.Buffer
 	insecureLogs bool
 	seedRT       string
+	runDir       string
+	scenPath     string
+	runOut       *bytes.Buffer
+	runSum       *runner.Summary
+	runErr       error
 }
 
 func (w *world) close() {
@@ -51,6 +58,10 @@ func (w *world) close() {
 	if w.tok != nil {
 		w.tok.Close()
 		w.tok = nil
+	}
+	if w.runDir != "" {
+		_ = os.RemoveAll(w.runDir)
+		w.runDir = ""
 	}
 }
 
@@ -80,6 +91,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	w := &world{}
 	initSession(sc, w)
 	initOAuth(sc, w)
+	initRunner(sc, w)
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		w.reset()
 		return ctx, nil

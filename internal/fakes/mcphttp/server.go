@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,6 +42,9 @@ type Server struct {
 	mu       sync.Mutex
 	reqs     []Recorded
 	sessions map[string]struct{}
+	seen     map[string]struct{}
+	peak     int
+	newConns int
 	authOK   func(string) bool
 }
 
@@ -49,11 +53,19 @@ func New(opts Options) *Server {
 		mode:     opts.Mode,
 		slow:     opts.SlowDelay,
 		sessions: map[string]struct{}{},
+		seen:     map[string]struct{}{},
 	}
 	if s.slow == 0 {
 		s.slow = 20 * time.Millisecond
 	}
 	s.http = httptest.NewServer(http.HandlerFunc(s.serve))
+	s.http.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			s.mu.Lock()
+			s.newConns++
+			s.mu.Unlock()
+		}
+	}
 	return s
 }
 
@@ -81,6 +93,34 @@ func (s *Server) Requests() []Recorded {
 	out := make([]Recorded, len(s.reqs))
 	copy(out, s.reqs)
 	return out
+}
+
+func (s *Server) PeakSessions() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.peak
+}
+
+func (s *Server) UniqueSessions() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.seen)
+}
+
+func (s *Server) SessionIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.seen))
+	for id := range s.seen {
+		out = append(out, id)
+	}
+	return out
+}
+
+func (s *Server) NewConns() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.newConns
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +200,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		sid = newID()
 		s.mu.Lock()
 		s.sessions[sid] = struct{}{}
+		s.seen[sid] = struct{}{}
+		if len(s.sessions) > s.peak {
+			s.peak = len(s.sessions)
+		}
 		s.mu.Unlock()
 		s.writeRPC(w, sid, map[string]any{
 			"jsonrpc": "2.0",

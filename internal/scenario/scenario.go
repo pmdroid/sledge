@@ -13,15 +13,17 @@ import (
 const TransportStreamableHTTP = "streamable-http"
 
 type Options struct {
-	VUs       int
-	Duration  string
-	LookupEnv func(string) (string, bool)
+	VUs        int
+	Duration   string
+	SharedPool bool
+	LookupEnv  func(string) (string, bool)
 }
 
 type Scenario struct {
 	Version    int
 	Target     Target
 	Auth       *Auth
+	HTTP       HTTP
 	Workload   Workload
 	Steps      []Step
 	Vars       map[string]string
@@ -49,13 +51,18 @@ type OAuth struct {
 	RefreshSkew  time.Duration
 }
 
+type HTTP struct {
+	Pool string
+}
+
 type Workload struct {
-	Model     string
-	VUs       int
-	Duration  time.Duration
-	RampUp    time.Duration
-	ThinkTime time.Duration
-	Session   Session
+	Model      string
+	VUs        int
+	Duration   time.Duration
+	RampUp     time.Duration
+	ThinkTime  time.Duration
+	Iterations int
+	Session    Session
 }
 
 type Session struct {
@@ -77,6 +84,7 @@ type file struct {
 	Version    int               `yaml:"version"`
 	Target     *targetFile       `yaml:"target"`
 	Auth       *authFile         `yaml:"auth"`
+	HTTP       *httpFile         `yaml:"http"`
 	Workload   *workloadFile     `yaml:"workload"`
 	Steps      []stepFile        `yaml:"steps"`
 	Vars       map[string]string `yaml:"vars"`
@@ -104,12 +112,17 @@ type oauthFile struct {
 	RefreshSkew  yamlDuration `yaml:"refresh_skew"`
 }
 
+type httpFile struct {
+	Pool string `yaml:"pool"`
+}
+
 type workloadFile struct {
 	Model       string       `yaml:"model"`
 	VUs         int          `yaml:"vus"`
 	Duration    yamlDuration `yaml:"duration"`
 	RampUp      yamlDuration `yaml:"ramp_up"`
 	ThinkTime   yamlDuration `yaml:"think_time"`
+	Iterations  int          `yaml:"iterations"`
 	Session     sessionFile  `yaml:"session"`
 	ArrivalRate *yaml.Node   `yaml:"arrival_rate"`
 	Rate        *yaml.Node   `yaml:"rate"`
@@ -254,12 +267,19 @@ func Load(r io.Reader, opts Options) (*Scenario, error) {
 		}
 		sc.Auth = &Auth{OAuth: oa}
 	}
+	if raw.HTTP != nil {
+		sc.HTTP.Pool = raw.HTTP.Pool
+	}
+	if sc.HTTP.Pool == "" {
+		sc.HTTP.Pool = "vu"
+	}
 	sc.Workload = Workload{
-		Model:     raw.Workload.Model,
-		VUs:       raw.Workload.VUs,
-		Duration:  time.Duration(raw.Workload.Duration),
-		RampUp:    time.Duration(raw.Workload.RampUp),
-		ThinkTime: time.Duration(raw.Workload.ThinkTime),
+		Model:      raw.Workload.Model,
+		VUs:        raw.Workload.VUs,
+		Duration:   time.Duration(raw.Workload.Duration),
+		RampUp:     time.Duration(raw.Workload.RampUp),
+		ThinkTime:  time.Duration(raw.Workload.ThinkTime),
+		Iterations: raw.Workload.Iterations,
 		Session: Session{
 			Mode: raw.Workload.Session.Mode,
 		},
@@ -295,7 +315,7 @@ func Load(r io.Reader, opts Options) (*Scenario, error) {
 }
 
 func applyOverrides(raw *file, opts Options) error {
-	if opts.VUs == 0 && opts.Duration == "" {
+	if opts.VUs == 0 && opts.Duration == "" && !opts.SharedPool {
 		return nil
 	}
 	if raw.Workload == nil {
@@ -310,6 +330,12 @@ func applyOverrides(raw *file, opts Options) error {
 			return fmt.Errorf("invalid --duration %q", opts.Duration)
 		}
 		raw.Workload.Duration = yamlDuration(d)
+	}
+	if opts.SharedPool {
+		if raw.HTTP == nil {
+			raw.HTTP = &httpFile{}
+		}
+		raw.HTTP.Pool = "shared"
 	}
 	return nil
 }
@@ -461,6 +487,14 @@ func validateLoaded(sc *Scenario) error {
 	}
 	if sc.Workload.Duration <= 0 {
 		return fmt.Errorf("workload.duration must be > 0")
+	}
+	if sc.Workload.Iterations < 0 {
+		return fmt.Errorf("workload.iterations must be >= 0")
+	}
+	switch sc.HTTP.Pool {
+	case "vu", "shared":
+	default:
+		return fmt.Errorf("unknown http.pool %q", sc.HTTP.Pool)
 	}
 	switch sc.Workload.Session.Mode {
 	case "per_vu", "per_iteration":
