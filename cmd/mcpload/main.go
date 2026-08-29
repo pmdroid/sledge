@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/pmdroid/mcp-loadtester/internal/scenario"
 )
 
 const version = "0.0.0-dev"
@@ -55,11 +57,17 @@ func cmdRun(args []string) int {
 func cmdValidate(args []string) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	vus := fs.Int("vus", 0, "")
+	dur := fs.String("duration", "", "")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.Arg(0) == "" {
 		fmt.Fprintln(stderr, "validate: scenario path required")
+		return 2
+	}
+	if err := scenario.ValidateFile(fs.Arg(0), scenario.Options{VUs: *vus, Duration: *dur}); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	return 0
