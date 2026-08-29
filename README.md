@@ -1,6 +1,6 @@
-# mcp-loadtester
+# sledge
 
-`mcpload` load-tests MCP servers over Streamable HTTP. Custom headers and OAuth are first-class. It is a Go CLI, not a k6 wrapper.
+`sledge` load-tests MCP servers over Streamable HTTP. Custom headers and OAuth are first-class. It is a Go CLI, not a k6 wrapper.
 
 Closed-model VUs. One session per VU by default. Per-VU HTTP clients by default. Shared OAuth token by default. Initialize is implicit.
 
@@ -11,23 +11,23 @@ Start here: [docs/getting-started.md](docs/getting-started.md). First run is 1 V
 Go 1.22+.
 
 ```bash
-go install github.com/pmdroid/mcp-loadtester/cmd/mcpload@main
+go install github.com/pmdroid/sledge/cmd/sledge@main
 ```
 
 From a clone:
 
 ```bash
-git clone https://github.com/pmdroid/mcp-loadtester.git
-cd mcp-loadtester
-make build          # writes bin/mcpload
+git clone https://github.com/pmdroid/sledge.git
+cd sledge
+make build          # writes bin/sledge
 ```
 
-`mcpload version` prints `0.0.0-dev`.
+`sledge version` prints `0.0.0-dev`.
 
 ## Commands
 
 ```
-mcpload <run|validate|version> [scenario]
+sledge <run|validate|version> [scenario]
 ```
 
 | Command | What it does |
@@ -41,8 +41,8 @@ Unknown command, missing path, or bad flags: exit 2.
 ### `validate`
 
 ```
-mcpload validate scenario.yaml
-mcpload validate --vus 1 --duration 10s scenario.yaml
+sledge validate scenario.yaml
+sledge validate --vus 1 --duration 10s scenario.yaml
 ```
 
 `--vus` and `--duration` override file values the same way `run` does, then validate the result.
@@ -50,9 +50,9 @@ mcpload validate --vus 1 --duration 10s scenario.yaml
 ### `run`
 
 ```
-mcpload run scenario.yaml
-mcpload run --vus 1 --duration 10s scenario.yaml
-mcpload run --http-shared-pool --out report.json scenario.yaml
+sledge run scenario.yaml
+sledge run --vus 1 --duration 10s scenario.yaml
+sledge run --http-shared-pool --out report.json scenario.yaml
 ```
 
 | Flag | Effect |
@@ -83,8 +83,8 @@ steps:
 ```
 
 ```bash
-mcpload validate scenario.yaml
-mcpload run --vus 1 --duration 10s scenario.yaml
+sledge validate scenario.yaml
+sledge run --vus 1 --duration 10s scenario.yaml
 ```
 
 A fuller file with OAuth, secrets, and thresholds is in [docs/scenario.md](docs/scenario.md).

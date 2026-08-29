@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
 )
 
 func TestPickVersion(t *testing.T) {

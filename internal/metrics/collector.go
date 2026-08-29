@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 type Failures struct {

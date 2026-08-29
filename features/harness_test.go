@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
-	"github.com/pmdroid/mcp-loadtester/internal/oauth"
-	"github.com/pmdroid/mcp-loadtester/internal/runner"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/token"
+	"github.com/pmdroid/sledge/internal/oauth"
+	"github.com/pmdroid/sledge/internal/runner"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 type world struct {
@@ -75,11 +75,11 @@ func (w *world) reset() {
 }
 
 func TestFeatures(t *testing.T) {
-	bin, err := compileMcpload(t)
+	bin, err := compileSledge(t)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mcploadBin = bin
+	sledgeBin = bin
 	suite := godog.TestSuite{
 		Name:                "harness",
 		ScenarioInitializer: InitializeScenario,

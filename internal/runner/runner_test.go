@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
-	"github.com/pmdroid/mcp-loadtester/internal/scenario"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/scenario"
 )
 
 func TestPerVUConcurrent(t *testing.T) {

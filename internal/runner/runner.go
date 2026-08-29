@@ -12,13 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/interp"
-	"github.com/pmdroid/mcp-loadtester/internal/metrics"
-	"github.com/pmdroid/mcp-loadtester/internal/oauth"
-	"github.com/pmdroid/mcp-loadtester/internal/redact"
-	"github.com/pmdroid/mcp-loadtester/internal/scenario"
-	"github.com/pmdroid/mcp-loadtester/internal/secret"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/interp"
+	"github.com/pmdroid/sledge/internal/metrics"
+	"github.com/pmdroid/sledge/internal/oauth"
+	"github.com/pmdroid/sledge/internal/redact"
+	"github.com/pmdroid/sledge/internal/scenario"
+	"github.com/pmdroid/sledge/internal/secret"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 type Config struct {

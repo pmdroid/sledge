@@ -7,8 +7,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/pmdroid/mcp-loadtester/internal/metrics"
-	"github.com/pmdroid/mcp-loadtester/internal/redact"
+	"github.com/pmdroid/sledge/internal/metrics"
+	"github.com/pmdroid/sledge/internal/redact"
 )
 
 const closedModelNote = "closed-model intended-send latency understates tails when the server stalls; uncorrected actual-send latency is also reported"

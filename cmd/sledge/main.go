@@ -8,10 +8,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/pmdroid/mcp-loadtester/internal/redact"
-	"github.com/pmdroid/mcp-loadtester/internal/runner"
-	"github.com/pmdroid/mcp-loadtester/internal/scenario"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/redact"
+	"github.com/pmdroid/sledge/internal/runner"
+	"github.com/pmdroid/sledge/internal/scenario"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 const version = "0.0.0-dev"
@@ -27,7 +27,7 @@ func main() {
 
 func run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: mcpload <run|validate|version> [scenario]")
+		fmt.Fprintln(stderr, "usage: sledge <run|validate|version> [scenario]")
 		return 2
 	}
 	switch args[0] {

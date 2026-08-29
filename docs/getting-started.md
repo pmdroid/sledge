@@ -1,6 +1,6 @@
 # Getting started
 
-`mcpload` is a Go CLI. It opens MCP Streamable HTTP sessions and loops the steps you list. First run is 1 VU. Do not turn the VUs up until that run is clean.
+`sledge` is a Go CLI. It opens MCP Streamable HTTP sessions and loops the steps you list. First run is 1 VU. Do not turn the VUs up until that run is clean.
 
 Do not put real gateway URLs, API keys, or tokens in the repo. Keep them in the environment or a local `.env` you never commit.
 
@@ -9,13 +9,13 @@ Do not put real gateway URLs, API keys, or tokens in the repo. Keep them in the 
 Go 1.22 or newer.
 
 ```bash
-git clone https://github.com/pmdroid/mcp-loadtester.git
-cd mcp-loadtester
+git clone https://github.com/pmdroid/sledge.git
+cd sledge
 make build
-./bin/mcpload version
+./bin/sledge version
 ```
 
-`go install github.com/pmdroid/mcp-loadtester/cmd/mcpload@main` also works if you want it on `PATH`.
+`go install github.com/pmdroid/sledge/cmd/sledge@main` also works if you want it on `PATH`.
 
 ## A 1 VU scenario
 
@@ -47,8 +47,8 @@ export MCP_URL='https://example.com/mcp'
 export API_KEY='your-token'
 export ARCADE_USER_ID='you@example.com'
 
-./bin/mcpload validate examples/first-run.yaml
-./bin/mcpload run --vus 1 --duration 30s examples/first-run.yaml
+./bin/sledge validate examples/first-run.yaml
+./bin/sledge run --vus 1 --duration 30s examples/first-run.yaml
 ```
 
 `--vus` and `--duration` override the file. Use them. Leave the committed YAML at 1 VU.
@@ -62,7 +62,7 @@ Some fronts reject Go's default User-Agent (Cloudflare 1010). Set `User-Agent` i
 Exit 0. `iterations` is 1. `errors` is 0. `unique_sessions` is 1. `setup` is the implicit initialize.
 
 ```
-./bin/mcpload run --vus 1 --duration 30s --out /tmp/mcpload-report.json examples/first-run.yaml
+./bin/sledge run --vus 1 --duration 30s --out /tmp/sledge-report.json examples/first-run.yaml
 ```
 
 `--out` writes JSON mode `0600`. The file should not contain the raw token. `${secret:…}` values print as `[redacted]`.
@@ -73,7 +73,7 @@ Exit codes: 0 pass, 1 threshold fail, 2 config or auth setup fail, 3 internal.
 
 **Static header.** `auth` omitted. Put `Authorization` (and any extra headers the server documents) under `target.headers`. Arcade headers mode is `Authorization: Bearer ${secret:API_KEY}` plus `Arcade-User-ID`.
 
-**OAuth.** `client_credentials` or a pre-seeded `refresh_token`. Shared token is the default. There is no browser login. If the server only speaks authorization-code MCP OAuth, `mcpload` cannot open a session until you have a refresh token or the server is switched to headers.
+**OAuth.** `client_credentials` or a pre-seeded `refresh_token`. Shared token is the default. There is no browser login. If the server only speaks authorization-code MCP OAuth, `sledge` cannot open a session until you have a refresh token or the server is switched to headers.
 
 A 401 with `Invalid OAuth token` and a `WWW-Authenticate` resource-metadata URL is that second case. The project API key is not an access token.
 

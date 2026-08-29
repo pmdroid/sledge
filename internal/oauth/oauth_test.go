@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
-	"github.com/pmdroid/mcp-loadtester/internal/secret"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/token"
+	"github.com/pmdroid/sledge/internal/secret"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 func TestSharedSingleflight(t *testing.T) {

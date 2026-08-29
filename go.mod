@@ -1,4 +1,4 @@
-module github.com/pmdroid/mcp-loadtester
+module github.com/pmdroid/sledge
 
 go 1.22
 

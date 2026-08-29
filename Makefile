@@ -4,4 +4,4 @@ test:
 	go test ./...
 
 build:
-	go build -o bin/mcpload ./cmd/mcpload
+	go build -o bin/sledge ./cmd/sledge

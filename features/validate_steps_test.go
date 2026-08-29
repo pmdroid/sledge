@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/scenario"
+	"github.com/pmdroid/sledge/internal/scenario"
 )
 
 type valWorld struct {
@@ -21,7 +21,7 @@ type valWorld struct {
 func initValidate(sc *godog.ScenarioContext) {
 	w := &valWorld{env: map[string]string{}}
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
-		dir, err := os.MkdirTemp("", "mcpload-validate-")
+		dir, err := os.MkdirTemp("", "sledge-validate-")
 		if err != nil {
 			return ctx, err
 		}

@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/runner"
-	"github.com/pmdroid/mcp-loadtester/internal/scenario"
+	"github.com/pmdroid/sledge/internal/runner"
+	"github.com/pmdroid/sledge/internal/scenario"
 )
 
 func initRunner(sc *godog.ScenarioContext, w *world) {
@@ -49,7 +49,7 @@ func (w *world) writeScenarioYAML(vus int, dur, think, mode, pool string, iters 
 	if w.mcp == nil {
 		return fmt.Errorf("no mcp server")
 	}
-	dir, err := os.MkdirTemp("", "mcpload-run-")
+	dir, err := os.MkdirTemp("", "sledge-run-")
 	if err != nil {
 		return err
 	}

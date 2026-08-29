@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 func initSession(sc *godog.ScenarioContext, w *world) {

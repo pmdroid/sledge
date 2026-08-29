@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/token"
 )
 
-var mcploadBin string
+var sledgeBin string
 
-func compileMcpload(t *testing.T) (string, error) {
+func compileSledge(t *testing.T) (string, error) {
 	t.Helper()
 	root, err := os.Getwd()
 	if err != nil {
@@ -27,8 +27,8 @@ func compileMcpload(t *testing.T) (string, error) {
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
 		root = filepath.Dir(root)
 	}
-	bin := filepath.Join(t.TempDir(), "mcpload")
-	cmd := exec.Command("go", "build", "-o", bin, "./cmd/mcpload")
+	bin := filepath.Join(t.TempDir(), "sledge")
+	cmd := exec.Command("go", "build", "-o", bin, "./cmd/sledge")
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -42,7 +42,7 @@ func initAcceptance(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^a fake MCP server requiring bearer and header "([^"]*)" equal to "([^"]*)"$`, w.startMCPBearerHeader)
 	sc.Step(`^a fake MCP server that always returns 401$`, w.startMCPAlways401)
 	sc.Step(`^a v1 scenario file with 5 VUs shared oauth and two steps$`, w.writeV1Scenario)
-	sc.Step(`^I run the mcpload binary$`, w.runMcploadBin)
+	sc.Step(`^I run the sledge binary$`, w.runSledgeBin)
 	sc.Step(`^the text report shows p95 and throughput$`, w.textHasP95Throughput)
 	sc.Step(`^auth errors are 0$`, w.authErrorsZero)
 	sc.Step(`^stdout and the JSON report omit the access token and client_secret$`, w.binOmitsSecrets)
@@ -79,7 +79,7 @@ func (w *world) writeV1Scenario() error {
 	if w.tok == nil {
 		return fmt.Errorf("no token endpoint")
 	}
-	dir, err := os.MkdirTemp("", "mcpload-acc-")
+	dir, err := os.MkdirTemp("", "sledge-acc-")
 	if err != nil {
 		return err
 	}
@@ -130,9 +130,9 @@ thresholds:
 	return nil
 }
 
-func (w *world) runMcploadBin() error {
-	if mcploadBin == "" {
-		return fmt.Errorf("mcpload binary not built")
+func (w *world) runSledgeBin() error {
+	if sledgeBin == "" {
+		return fmt.Errorf("sledge binary not built")
 	}
 	if w.scenPath == "" {
 		return fmt.Errorf("no scenario")
@@ -141,7 +141,7 @@ func (w *world) runMcploadBin() error {
 		return fmt.Errorf("no token endpoint")
 	}
 	outPath := filepath.Join(w.runDir, "out.json")
-	cmd := exec.Command(mcploadBin, "run", "--vus", "5", "--duration", "800ms", "--out", outPath, w.scenPath)
+	cmd := exec.Command(sledgeBin, "run", "--vus", "5", "--duration", "800ms", "--out", outPath, w.scenPath)
 	cmd.Env = append(os.Environ(),
 		"CLIENT_ID="+w.tok.ClientID(),
 		"CLIENT_SECRET="+w.tok.ClientSecret(),
@@ -159,7 +159,7 @@ func (w *world) runMcploadBin() error {
 	case err = <-done:
 	case <-time.After(20 * time.Second):
 		_ = cmd.Process.Kill()
-		return fmt.Errorf("mcpload timed out: stdout=%s stderr=%s", stdout.String(), stderr.String())
+		return fmt.Errorf("sledge timed out: stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
 	w.runOut = stdout
 	w.binErr = stderr
@@ -168,7 +168,7 @@ func (w *world) runMcploadBin() error {
 	} else if ee, ok := err.(*exec.ExitError); ok {
 		w.runCode = ee.ExitCode()
 	} else {
-		return fmt.Errorf("mcpload: %w stderr=%s", err, stderr.String())
+		return fmt.Errorf("sledge: %w stderr=%s", err, stderr.String())
 	}
 	raw, readErr := os.ReadFile(outPath)
 	if readErr == nil {

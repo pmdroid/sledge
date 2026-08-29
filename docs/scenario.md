@@ -1,6 +1,6 @@
 # Scenario YAML
 
-v1 files are `version: 1`. `mcpload validate` must accept the frozen shape below. CLI `--vus` and `--duration` override `workload.vus` and `workload.duration` after parse.
+v1 files are `version: 1`. `sledge validate` must accept the frozen shape below. CLI `--vus` and `--duration` override `workload.vus` and `workload.duration` after parse.
 
 ## Frozen shape
 
@@ -226,8 +226,8 @@ thresholds:
 export CLIENT_ID=example-client
 export CLIENT_SECRET=   # set locally, never commit
 export STATIC_TOKEN=    # set locally, never commit
-mcpload validate --vus 1 --duration 10s scenario.yaml
-mcpload run --vus 1 --duration 10s scenario.yaml
+sledge validate --vus 1 --duration 10s scenario.yaml
+sledge run --vus 1 --duration 10s scenario.yaml
 ```
 
 Refresh-token grant, same placeholder hosts:

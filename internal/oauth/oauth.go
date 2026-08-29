@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/redact"
-	"github.com/pmdroid/mcp-loadtester/internal/secret"
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/redact"
+	"github.com/pmdroid/sledge/internal/secret"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 const (

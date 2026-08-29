@@ -183,7 +183,7 @@ func (c *Client) initOnce(ctx context.Context, ver string) (*Result, error) {
 	return c.Call(ctx, "initialize", map[string]any{
 		"protocolVersion": ver,
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "mcpload", "version": "0.0.0-dev"},
+		"clientInfo":      map[string]any{"name": "sledge", "version": "0.0.0-dev"},
 	}, time.Time{})
 }
 
@@ -350,7 +350,7 @@ func (c *Client) attachMeta(params any) any {
 	out["_meta"] = map[string]any{
 		"io.modelcontextprotocol/protocolVersion":     c.version(),
 		"io.modelcontextprotocol/clientCapabilities": map[string]any{},
-		"io.modelcontextprotocol/clientInfo":          map[string]any{"name": "mcpload", "version": "0.0.0-dev"},
+		"io.modelcontextprotocol/clientInfo":          map[string]any{"name": "sledge", "version": "0.0.0-dev"},
 	}
 	return out
 }

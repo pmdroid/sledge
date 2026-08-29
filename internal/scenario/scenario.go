@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/interp"
+	"github.com/pmdroid/sledge/internal/interp"
 	"gopkg.in/yaml.v3"
 )
 

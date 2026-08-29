@@ -4,7 +4,7 @@ Feature: v1 acceptance headers and OAuth against fakes
     Given a fake token endpoint with client_id "acc-client" and client_secret "acc-client-secret-xyz"
     And a fake MCP server requiring bearer and header "X-Team" equal to "platform"
     And a v1 scenario file with 5 VUs shared oauth and two steps
-    When I run the mcpload binary
+    When I run the sledge binary
     Then the run exits 0
     And the text report shows p95 and throughput
     And auth errors are 0
@@ -16,5 +16,5 @@ Feature: v1 acceptance headers and OAuth against fakes
     Given a fake token endpoint with client_id "acc-client" and client_secret "acc-client-secret-xyz"
     And a fake MCP server that always returns 401
     And a v1 scenario file with 5 VUs shared oauth and two steps
-    When I run the mcpload binary
+    When I run the sledge binary
     Then the run exits 1

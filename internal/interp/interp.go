@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pmdroid/mcp-loadtester/internal/secret"
+	"github.com/pmdroid/sledge/internal/secret"
 )
 
 type kind int

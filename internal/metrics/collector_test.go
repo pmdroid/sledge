@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pmdroid/mcp-loadtester/internal/session"
+	"github.com/pmdroid/sledge/internal/session"
 )
 
 func TestCollectorTagsAndP95(t *testing.T) {

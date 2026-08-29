@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
 )
 
 func initMetrics(sc *godog.ScenarioContext, w *world) {
@@ -50,7 +50,7 @@ func (w *world) writeExtraYAML(vus int, dur, headers, token, extra string) error
 	if w.mcp == nil {
 		return fmt.Errorf("no mcp server")
 	}
-	dir, err := os.MkdirTemp("", "mcpload-metrics-")
+	dir, err := os.MkdirTemp("", "sledge-metrics-")
 	if err != nil {
 		return err
 	}
