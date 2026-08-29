@@ -50,6 +50,8 @@ type world struct {
 	runErr       error
 	runCode      int
 	secretTok    string
+	binJSON      []byte
+	binErr       *bytes.Buffer
 }
 
 func (w *world) close() {
@@ -73,6 +75,11 @@ func (w *world) reset() {
 }
 
 func TestFeatures(t *testing.T) {
+	bin, err := compileMcpload(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcploadBin = bin
 	suite := godog.TestSuite{
 		Name:                "harness",
 		ScenarioInitializer: InitializeScenario,
@@ -95,6 +102,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	initOAuth(sc, w)
 	initRunner(sc, w)
 	initMetrics(sc, w)
+	initAcceptance(sc, w)
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		w.reset()
 		return ctx, nil

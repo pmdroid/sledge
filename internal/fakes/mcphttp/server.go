@@ -45,9 +45,11 @@ type Server struct {
 	reqs     []Recorded
 	sessions map[string]struct{}
 	seen     map[string]struct{}
-	peak     int
-	newConns int
-	authOK   func(string) bool
+	peak           int
+	newConns       int
+	authOK         func(string) bool
+	requireHeaders map[string]string
+	always401      bool
 }
 
 func New(opts Options) *Server {
@@ -87,6 +89,21 @@ func (s *Server) RequireToken(tok string) {
 func (s *Server) RequireAccess(fn func(string) bool) {
 	s.mu.Lock()
 	s.authOK = fn
+	s.mu.Unlock()
+}
+
+func (s *Server) RequireHeader(key, val string) {
+	s.mu.Lock()
+	if s.requireHeaders == nil {
+		s.requireHeaders = map[string]string{}
+	}
+	s.requireHeaders[key] = val
+	s.mu.Unlock()
+}
+
+func (s *Server) AlwaysUnauthorized() {
+	s.mu.Lock()
+	s.always401 = true
 	s.mu.Unlock()
 }
 
@@ -146,8 +163,17 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	always401 := s.always401
 	authOK := s.authOK
+	reqHeaders := map[string]string{}
+	for k, v := range s.requireHeaders {
+		reqHeaders[k] = v
+	}
 	s.mu.Unlock()
+	if always401 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if authOK != nil {
 		h := r.Header.Get("Authorization")
 		tok := ""
@@ -155,6 +181,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			tok = strings.TrimSpace(h[len("Bearer "):])
 		}
 		if tok == "" || !authOK(tok) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+	for k, v := range reqHeaders {
+		if r.Header.Get(k) != v {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
