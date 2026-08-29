@@ -1,0 +1,10 @@
+/mcpload
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+.DS_Store
+.env
+secrets.yaml
+secrets.yml
