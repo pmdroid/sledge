@@ -55,6 +55,7 @@ type Config struct {
 	URL     string
 	Headers map[string]string
 	Client  *http.Client
+	Auth    func(context.Context, *http.Request) error
 }
 
 type Result struct {
@@ -84,6 +85,7 @@ type Client struct {
 	url     string
 	headers map[string]string
 	client  *http.Client
+	auth    func(context.Context, *http.Request) error
 	id      string
 	nextID  int64
 }
@@ -97,7 +99,7 @@ func New(cfg Config) *Client {
 	for k, v := range cfg.Headers {
 		h[k] = v
 	}
-	return &Client{url: cfg.URL, headers: h, client: cli, nextID: 1}
+	return &Client{url: cfg.URL, headers: h, client: cli, auth: cfg.Auth, nextID: 1}
 }
 
 func (c *Client) ID() string {
@@ -132,7 +134,9 @@ func (c *Client) Call(ctx context.Context, method string, params any, intended t
 	if err != nil {
 		return nil, &Error{Tag: TagTransport, Err: err}
 	}
-	c.applyHeaders(req)
+	if err := c.applyHeaders(ctx, req); err != nil {
+		return nil, err
+	}
 	actual := time.Now()
 	if intended.IsZero() {
 		intended = actual
@@ -186,7 +190,9 @@ func (c *Client) Close(ctx context.Context) error {
 	if err != nil {
 		return &Error{Tag: TagTransport, Err: err}
 	}
-	c.applyHeaders(req)
+	if err := c.applyHeaders(ctx, req); err != nil {
+		return err
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return &Error{Tag: TagTransport, Err: err}
@@ -200,7 +206,7 @@ func (c *Client) Close(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) applyHeaders(req *http.Request) {
+func (c *Client) applyHeaders(ctx context.Context, req *http.Request) error {
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
@@ -212,6 +218,15 @@ func (c *Client) applyHeaders(req *http.Request) {
 	if c.id != "" {
 		req.Header.Set("Mcp-Session-Id", c.id)
 	}
+	if c.auth != nil {
+		if err := c.auth(ctx, req); err != nil {
+			if TagOf(err) == "" {
+				return &Error{Tag: TagAuth, Err: err}
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func classifyStatus(code int) error {

@@ -33,6 +33,20 @@ func TestRunMissingPath(t *testing.T) {
 	}
 }
 
+func TestInsecureLogSecretsWarns(t *testing.T) {
+	var errBuf bytes.Buffer
+	stdout = ioDiscard()
+	stderr = &errBuf
+	t.Cleanup(restoreIO)
+	code := run([]string{"run", "--insecure-log-secrets", "scenario.yaml"})
+	if code != 0 {
+		t.Fatalf("exit %d, want 0", code)
+	}
+	if !strings.Contains(errBuf.String(), "WARNING") || !strings.Contains(errBuf.String(), "insecure-log-secrets") {
+		t.Fatalf("stderr %q", errBuf.String())
+	}
+}
+
 func TestValidateMissingPath(t *testing.T) {
 	stdout = ioDiscard()
 	stderr = ioDiscard()

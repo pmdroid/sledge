@@ -40,6 +40,7 @@ type Server struct {
 	mu           sync.Mutex
 	reqs         []Recorded
 	refresh      map[string]string
+	access       map[string]struct{}
 }
 
 func New(opts Options) *Server {
@@ -49,6 +50,7 @@ func New(opts Options) *Server {
 		expiresIn:    opts.ExpiresIn,
 		rotate:       opts.RotateRefresh,
 		refresh:      map[string]string{},
+		access:       map[string]struct{}{},
 	}
 	if s.clientID == "" {
 		s.clientID = DefaultClientID
@@ -83,6 +85,23 @@ func (s *Server) SeedRefresh(rt string) {
 	s.mu.Lock()
 	s.refresh[rt] = ""
 	s.mu.Unlock()
+}
+
+func (s *Server) ValidAccess(tok string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.access[tok]
+	return ok
+}
+
+func (s *Server) AccessTokens() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.access))
+	for t := range s.access {
+		out = append(out, t)
+	}
+	return out
 }
 
 func (s *Server) Requests() []Recorded {
@@ -147,11 +166,15 @@ func (s *Server) issue(w http.ResponseWriter, oldRefresh string) {
 	refresh := "rt_" + newID()
 	s.mu.Lock()
 	if oldRefresh != "" {
+		if prev := s.refresh[oldRefresh]; prev != "" {
+			delete(s.access, prev)
+		}
 		delete(s.refresh, oldRefresh)
 		if !s.rotate {
 			refresh = oldRefresh
 		}
 	}
+	s.access[access] = struct{}{}
 	s.refresh[refresh] = access
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"time"
 )
@@ -40,6 +41,7 @@ type Server struct {
 	mu       sync.Mutex
 	reqs     []Recorded
 	sessions map[string]struct{}
+	authOK   func(string) bool
 }
 
 func New(opts Options) *Server {
@@ -61,6 +63,16 @@ func (s *Server) URL() string {
 
 func (s *Server) Close() {
 	s.http.Close()
+}
+
+func (s *Server) RequireToken(tok string) {
+	s.RequireAccess(func(got string) bool { return got == tok })
+}
+
+func (s *Server) RequireAccess(fn func(string) bool) {
+	s.mu.Lock()
+	s.authOK = fn
+	s.mu.Unlock()
 }
 
 func (s *Server) Requests() []Recorded {
@@ -89,6 +101,20 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/mcp" {
 		http.NotFound(w, r)
 		return
+	}
+	s.mu.Lock()
+	authOK := s.authOK
+	s.mu.Unlock()
+	if authOK != nil {
+		h := r.Header.Get("Authorization")
+		tok := ""
+		if strings.HasPrefix(h, "Bearer ") {
+			tok = strings.TrimSpace(h[len("Bearer "):])
+		}
+		if tok == "" || !authOK(tok) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 	if r.Method == http.MethodDelete {
 		sid := r.Header.Get("Mcp-Session-Id")

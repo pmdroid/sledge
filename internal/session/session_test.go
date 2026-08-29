@@ -75,6 +75,47 @@ func TestDisconnectTransport(t *testing.T) {
 	}
 }
 
+func TestAuthInject(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	srv.RequireToken("tok-1")
+	c := New(Config{
+		URL: srv.URL(),
+		Auth: func(_ context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", "Bearer tok-1")
+			return nil
+		},
+	})
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAuthInjectError(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	c := New(Config{
+		URL: srv.URL(),
+		Auth: func(context.Context, *http.Request) error {
+			return context.DeadlineExceeded
+		},
+	})
+	_, err := c.Initialize(context.Background())
+	if TagOf(err) != TagAuth {
+		t.Fatalf("tag %q err %v", TagOf(err), err)
+	}
+}
+
+func TestStaticBearerHeader(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	srv.RequireToken("static-token")
+	c := New(Config{URL: srv.URL(), Headers: map[string]string{"Authorization": "Bearer static-token"}})
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAuthStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

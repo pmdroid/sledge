@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/pmdroid/mcp-loadtester/internal/redact"
 	"github.com/pmdroid/mcp-loadtester/internal/scenario"
 )
 
@@ -44,12 +45,16 @@ func cmdRun(args []string) int {
 	fs.SetOutput(stderr)
 	fs.Int("vus", 0, "")
 	fs.String("duration", "", "")
+	insecure := fs.Bool("insecure-log-secrets", false, "")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.Arg(0) == "" {
 		fmt.Fprintln(stderr, "run: scenario path required")
 		return 2
+	}
+	if *insecure {
+		redact.WarnInsecure(stderr)
 	}
 	return 0
 }

@@ -15,26 +15,32 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/mcphttp"
 	"github.com/pmdroid/mcp-loadtester/internal/fakes/token"
+	"github.com/pmdroid/mcp-loadtester/internal/oauth"
 	"github.com/pmdroid/mcp-loadtester/internal/session"
 )
 
 type world struct {
-	mcp         *mcphttp.Server
-	tok         *token.Server
-	client      *http.Client
-	access      string
-	refresh     string
-	oldRefresh  string
-	session     string
-	expiresIn   int
-	lastStatus  int
-	lastCT      string
-	lastBody    []byte
-	lastHeader  http.Header
-	lastErr     error
-	sessHeaders map[string]string
-	mcpSess     *session.Client
-	lastSessErr error
+	mcp          *mcphttp.Server
+	tok          *token.Server
+	client       *http.Client
+	access       string
+	refresh      string
+	oldRefresh   string
+	session      string
+	expiresIn    int
+	lastStatus   int
+	lastCT       string
+	lastBody     []byte
+	lastHeader   http.Header
+	lastErr      error
+	sessHeaders  map[string]string
+	mcpSess      *session.Client
+	lastSessErr  error
+	oauth        *oauth.Manager
+	vuErrs       []error
+	warnBuf      *bytes.Buffer
+	insecureLogs bool
+	seedRT       string
 }
 
 func (w *world) close() {
@@ -73,6 +79,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	initValidate(sc)
 	w := &world{}
 	initSession(sc, w)
+	initOAuth(sc, w)
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		w.reset()
 		return ctx, nil
@@ -105,7 +112,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	sc.Step(`^I list tools$`, w.listTools)
 	sc.Step(`^I call tool "([^"]*)" with query "([^"]*)"$`, w.callTool)
 	sc.Step(`^I refresh the token$`, w.refreshToken)
-	sc.Step(`^the token endpoint recorded (\d+) request$`, w.tokenRecorded)
+	sc.Step(`^the token endpoint recorded (\d+) requests?$`, w.tokenRecorded)
 	sc.Step(`^the MCP server recorded (\d+) requests$`, w.mcpRecorded)
 	sc.Step(`^subsequent MCP requests carry Mcp-Session-Id$`, w.sessionOnLaterRequests)
 	sc.Step(`^the last MCP response is application/json$`, func() error {

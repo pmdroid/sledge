@@ -24,6 +24,26 @@ func TestLoadValid(t *testing.T) {
 	}
 }
 
+func TestTokenScopePerVU(t *testing.T) {
+	t.Setenv("CLIENT_ID", "client")
+	y := strings.Replace(validYAML, "token_scope: shared", "token_scope: per_vu", 1)
+	sc, err := Load(strings.NewReader(y), Options{LookupEnv: os.LookupEnv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.Auth.OAuth.TokenScope != "per_vu" {
+		t.Fatalf("scope %q", sc.Auth.OAuth.TokenScope)
+	}
+	y = strings.Replace(validYAML, "token_scope: shared", "token_scope: per-vu", 1)
+	sc, err = Load(strings.NewReader(y), Options{LookupEnv: os.LookupEnv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.Auth.OAuth.TokenScope != "per_vu" {
+		t.Fatalf("scope %q", sc.Auth.OAuth.TokenScope)
+	}
+}
+
 func TestCLIOverrides(t *testing.T) {
 	t.Setenv("CLIENT_ID", "client")
 	sc, err := Load(strings.NewReader(validYAML), Options{VUs: 3, Duration: "15s", LookupEnv: os.LookupEnv})

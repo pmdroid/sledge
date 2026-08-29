@@ -344,6 +344,9 @@ func loadOAuth(raw *oauthFile, ctx interp.Context) (*OAuth, error) {
 	if oa.TokenScope == "" {
 		oa.TokenScope = "shared"
 	}
+	if oa.TokenScope == "per-vu" {
+		oa.TokenScope = "per_vu"
+	}
 	if oa.RefreshSkew == 0 {
 		oa.RefreshSkew = 30 * time.Second
 	}
@@ -486,7 +489,9 @@ func validateLoaded(sc *Scenario) error {
 		if oa.Grant == "refresh_token" && oa.RefreshToken.String() == "" && !oa.RefreshToken.HasSecret() {
 			return fmt.Errorf("missing required field: auth.oauth.refresh_token")
 		}
-		if oa.TokenScope != "shared" {
+		switch oa.TokenScope {
+		case "shared", "per_vu":
+		default:
 			return fmt.Errorf("unknown token_scope %q", oa.TokenScope)
 		}
 	}
