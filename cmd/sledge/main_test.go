@@ -171,6 +171,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, srv.URL())
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
@@ -208,6 +211,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 thresholds:
   p95_latency: "< 1ms"
 `, srv.URL())
@@ -249,6 +255,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, srv.URL())
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)

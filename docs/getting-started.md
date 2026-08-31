@@ -38,6 +38,12 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: ${env:MCP_TOOL}
+      arguments: {}
+    expect:
+      ok: true
+      max_duration: 30s
 ```
 
 `iterations: 1` means initialize, run the steps once, then close. `duration` is only a cap.
@@ -46,12 +52,13 @@ steps:
 export MCP_URL='https://example.com/mcp'
 export API_KEY='your-token'
 export ARCADE_USER_ID='you@example.com'
+export MCP_TOOL='Arcade_ListApps'
 
 ./bin/sledge validate examples/first-run.yaml
 ./bin/sledge run --vus 1 --duration 30s examples/first-run.yaml
 ```
 
-`--vus` and `--duration` override the file. Use them. Leave the committed YAML at 1 VU.
+`--vus` and `--duration` override the file. Use them. Leave the committed YAML at 1 VU. Pick `MCP_TOOL` from a manual `tools/list` against your server (read-only tools are safest for smoke tests).
 
 If the server wants a static header and no `Bearer ` prefix, drop the word `Bearer` and keep `${secret:API_KEY}`. If it wants OAuth instead of a static key, omit `Authorization` and add an `auth.oauth` block. See [scenario.md](scenario.md).
 
@@ -66,6 +73,8 @@ Exit 0. `iterations` is 1. `errors` is 0. `unique_sessions` is 1. `setup` is the
 ```
 
 `--out` writes JSON mode `0600`. The file should not contain the raw token. `${secret:…}` values print as `[redacted]`.
+
+Use `--progress` for a live status line on stderr (once per second: elapsed, iterations, ops, errors, rps, p95). The final text report still goes to stdout when the run finishes.
 
 Exit codes: 0 pass, 1 threshold fail, 2 config or auth setup fail, 3 internal.
 
@@ -85,8 +94,9 @@ auth:
 ```
 
 ```bash
-sledge auth examples/first-run.yaml
-sledge run --vus 1 --duration 30s examples/first-run.yaml
+sledge auth examples/oauth-first-run.yaml
+export MCP_TOOL='Arcade_ListApps'
+sledge run --vus 1 --duration 30s examples/oauth-first-run.yaml
 ```
 
 `sledge auth` discovers the protected-resource and authorization-server metadata, registers a public client if `client_id` is empty, and opens a localhost callback for the authorization-code + PKCE login. The refresh token is written under your user state dir (`$SLEDGE_STATE_DIR/tokens` or `UserConfigDir/sledge/tokens`) as mode `0600`. It is not committed. `sledge run` reuses that file. Auth is once per resource, not per VU.
@@ -99,7 +109,7 @@ Servers that only speak `2025-06-18` or `2025-03-26` will fail initialize. That 
 
 ## After 1 VU works
 
-Raise `--vus` and `--duration` on the command line. Keep `session.mode: per_vu` unless you want a new session every iteration. Add `tools/call` steps with real tool names from `tools/list`. Put thresholds in the file when you want CI to fail a regression.
+Raise `--vus` and `--duration` on the command line. Keep `session.mode: per_vu` unless you want a new session every iteration. Every scenario needs at least one `tools/call` step (list-only YAML fails validate). Put thresholds in the file when you want CI to fail a regression.
 
 ```yaml
 thresholds:

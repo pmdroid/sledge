@@ -119,6 +119,8 @@ Durations use Go parse: `500ms`, `10s`, `2m`.
 
 Each step is a one-key mapping. The key is the method. The value is the JSON-RPC `params` object.
 
+Every scenario must include at least one `tools/call` step. `tools/list` alone fails validate. List first if you need to discover names, then call a real tool (often via `${env:MCP_TOOL}` or `${var:…}`).
+
 ```yaml
 steps:
   - tools/list: {}

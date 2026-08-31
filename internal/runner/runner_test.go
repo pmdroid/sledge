@@ -110,6 +110,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, srv.URL())
 	sc := mustLoad(t, y)
 	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
@@ -145,6 +148,9 @@ workload:
     mode: %s
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, url, pool, vus, dur, think, iterLine, mode)
 }
 
@@ -172,6 +178,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 thresholds:
   p95_latency: "< 1ms"
 `, srv.URL())
@@ -230,6 +239,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, srv.URL(), tok)
 	sc := mustLoad(t, y)
 	outPath := t.TempDir() + "/report.json"
@@ -267,7 +279,9 @@ workload:
   session:
     mode: per_vu
 steps:
-  - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
     expect:
       ok: true
       max_duration: 1ms
@@ -316,6 +330,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, mcp.URL())
 	sc := mustLoad(t, y)
 	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
@@ -346,6 +363,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `
 	sc := mustLoad(t, y)
 	_, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})

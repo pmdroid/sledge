@@ -31,6 +31,7 @@ type Config struct {
 	Stderr             io.Writer
 	JSON               io.Writer
 	OutPath            string
+	Progress           bool
 	Log                *redact.Logger
 }
 
@@ -115,6 +116,10 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		errs   atomic.Int64
 		wg     sync.WaitGroup
 	)
+	done := make(chan struct{})
+	if cfg.Progress {
+		go runProgress(cfg.Stderr, start, &iters, coll, done)
+	}
 	trackOpen := func(id string) {
 		mu.Lock()
 		if id != "" {
@@ -162,6 +167,11 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		}(i)
 	}
 	wg.Wait()
+	close(done)
+	if cfg.Progress && cfg.Stderr != nil {
+		writeProgressLine(cfg.Stderr, start, &iters, coll)
+		fmt.Fprintln(cfg.Stderr)
+	}
 	sum.Duration = time.Since(start)
 	sum.Iterations = iters.Load()
 	sum.SetupCount = setups.Load()

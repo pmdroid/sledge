@@ -74,6 +74,7 @@ sledge run --http-shared-pool --out report.json scenario.yaml
 | `--duration D` | Override `workload.duration`. Go duration (`10s`, `2m`). Empty leaves the file value. |
 | `--http-shared-pool` | One shared `http.Client` for every VU. Same as `http.pool: shared`. |
 | `--out PATH` / `--out-file PATH` | Write the JSON report to `PATH` mode `0600`. Aliases. |
+| `--progress` | Live status on stderr once per second (iters, ops, errs, rps, p95). |
 | `--insecure-log-secrets` | See [Redaction](#redaction). |
 
 ## First run
@@ -97,18 +98,25 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: ${env:MCP_TOOL}
+      arguments: {}
+    expect:
+      ok: true
+      max_duration: 30s
 ```
 
 ```bash
 export MCP_URL='https://example.com/mcp'
 export API_KEY='your-token'
 export ARCADE_USER_ID='you@example.com'
+export MCP_TOOL='Arcade_ListApps'
 
 sledge validate examples/first-run.yaml
 sledge run --vus 1 --duration 30s examples/first-run.yaml
 ```
 
-`iterations: 1` is initialize, one pass over the steps, then close. Drop `Bearer ` if the server wants the raw key. For OAuth instead of a static header, see [docs/getting-started.md](docs/getting-started.md). Full YAML: [docs/scenario.md](docs/scenario.md).
+`iterations: 1` is initialize, one pass over the steps, then close. Set `MCP_TOOL` to a name from `tools/list`. Drop `Bearer ` if the server wants the raw key. For OAuth instead of a static header, see [docs/getting-started.md](docs/getting-started.md). Full YAML: [docs/scenario.md](docs/scenario.md).
 
 ## Scenario YAML
 
@@ -263,6 +271,7 @@ stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenario
 - [Scenario YAML](docs/scenario.md)
 - [Tests](docs/testing.md)
 - [First-run example](examples/first-run.yaml)
+- [OAuth first-run example](examples/oauth-first-run.yaml)
 
 ## Tests
 

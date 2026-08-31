@@ -475,6 +475,15 @@ func checkRequired(raw *file) error {
 	return nil
 }
 
+func hasToolCall(steps []Step) bool {
+	for _, st := range steps {
+		if st.Method == "tools/call" {
+			return true
+		}
+	}
+	return false
+}
+
 func validateLoaded(sc *Scenario) error {
 	if sc.Target.Transport != TransportStreamableHTTP {
 		return fmt.Errorf("unknown transport %q; only %s is legal", sc.Target.Transport, TransportStreamableHTTP)
@@ -529,6 +538,9 @@ func validateLoaded(sc *Scenario) error {
 		default:
 			return fmt.Errorf("unknown token_scope %q", oa.TokenScope)
 		}
+	}
+	if !hasToolCall(sc.Steps) {
+		return fmt.Errorf("scenarios must include at least one tools/call step")
 	}
 	return nil
 }

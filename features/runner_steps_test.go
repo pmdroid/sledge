@@ -74,6 +74,9 @@ workload:
     mode: %s
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `, w.mcp.URL(), pool, vus, dur, think, iterLine, mode)
 	path := filepath.Join(dir, "scenario.yaml")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {

@@ -1,12 +1,13 @@
-# 1 VU smoke scenario. Point it at a real server with env vars.
-# Do not put hostnames, tokens, or keys in this file.
+# 1 VU OAuth smoke. Run sledge auth once, then sledge run.
+# Do not put hostnames or tokens in this file.
 version: 1
 target:
   url: ${env:MCP_URL}
   transport: streamable-http
-  headers:
-    Authorization: Bearer ${secret:API_KEY}
-    Arcade-User-ID: ${env:ARCADE_USER_ID}
+auth:
+  oauth:
+    grant: authorization_code
+    token_scope: shared
 workload:
   model: closed
   vus: 1

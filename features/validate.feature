@@ -117,9 +117,29 @@ Feature: scenario YAML validate
         duration: 1s
       steps:
         - tools/list: {}
+        - tools/call:
+            name: search
+            arguments: { query: hello }
       """
     When I validate the scenario
     Then validation succeeds
+
+  Scenario: list-only fails
+    Given a scenario file:
+      """
+      version: 1
+      target:
+        url: https://example.com/mcp
+        transport: streamable-http
+      workload:
+        model: closed
+        vus: 1
+        duration: 1s
+      steps:
+        - tools/list: {}
+      """
+    When I validate the scenario
+    Then validation fails with "tools/call"
 
   Scenario: arrival-rate is rejected
     Given a scenario file:
