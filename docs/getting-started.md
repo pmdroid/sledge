@@ -74,7 +74,7 @@ Exit 0. `iterations` is 1. `errors` is 0. `unique_sessions` is 1. `setup` is the
 
 `--out` writes JSON mode `0600`. The file should not contain the raw token. `${secret:…}` values print as `[redacted]`.
 
-Use `--progress` for a live status line on stderr (once per second: elapsed, iterations, ops, errors, rps, p95). The final text report still goes to stdout when the run finishes.
+Use `--progress` for a live status line on stderr (once per second: elapsed, iterations, ops, errors, rps, p95). The final text report still goes to stdout when the run finishes. With a TTY, the report uses sledge-themed colors (orange/green/cyan); pipe to a file or set `--color never` for plain text.
 
 Exit codes: 0 pass, 1 threshold fail, 2 config or auth setup fail, 3 internal.
 

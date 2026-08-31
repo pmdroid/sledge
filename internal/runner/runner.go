@@ -20,6 +20,7 @@ import (
 	"github.com/pmdroid/sledge/internal/scenario"
 	"github.com/pmdroid/sledge/internal/secret"
 	"github.com/pmdroid/sledge/internal/session"
+	"github.com/pmdroid/sledge/internal/termstyle"
 )
 
 type Config struct {
@@ -32,6 +33,7 @@ type Config struct {
 	JSON               io.Writer
 	OutPath            string
 	Progress           bool
+	Color              termstyle.Mode
 	Log                *redact.Logger
 }
 
@@ -117,8 +119,10 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 		wg     sync.WaitGroup
 	)
 	done := make(chan struct{})
+	stdoutSty := termstyle.New(cfg.Stdout, cfg.Color)
+	stderrSty := termstyle.New(cfg.Stderr, cfg.Color)
 	if cfg.Progress {
-		go runProgress(cfg.Stderr, start, &iters, coll, done)
+		go runProgress(cfg.Stderr, start, &iters, coll, done, stderrSty)
 	}
 	trackOpen := func(id string) {
 		mu.Lock()
@@ -169,7 +173,7 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 	wg.Wait()
 	close(done)
 	if cfg.Progress && cfg.Stderr != nil {
-		writeProgressLine(cfg.Stderr, start, &iters, coll)
+		writeProgressLine(cfg.Stderr, start, &iters, coll, stderrSty)
 		fmt.Fprintln(cfg.Stderr)
 	}
 	sum.Duration = time.Since(start)
@@ -201,7 +205,7 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 	}
 	sum.Thresholds = th
 	sum.Failed = metrics.Failed(th)
-	sum.WriteText(cfg.Stdout)
+	sum.WriteText(cfg.Stdout, stdoutSty)
 	raw, err := sum.marshalJSON(log)
 	if err != nil {
 		return sum, err

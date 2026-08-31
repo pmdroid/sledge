@@ -75,6 +75,7 @@ sledge run --http-shared-pool --out report.json scenario.yaml
 | `--http-shared-pool` | One shared `http.Client` for every VU. Same as `http.pool: shared`. |
 | `--out PATH` / `--out-file PATH` | Write the JSON report to `PATH` mode `0600`. Aliases. |
 | `--progress` | Live status on stderr once per second (iters, ops, errs, rps, p95). |
+| `--color auto\|always\|never` | Terminal colors for the text report and `--progress` (default `auto` when stdout/stderr is a TTY). Respects `NO_COLOR`. |
 | `--insecure-log-secrets` | See [Redaction](#redaction). |
 
 ## First run

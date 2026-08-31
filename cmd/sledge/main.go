@@ -13,6 +13,7 @@ import (
 	"github.com/pmdroid/sledge/internal/runner"
 	"github.com/pmdroid/sledge/internal/scenario"
 	"github.com/pmdroid/sledge/internal/session"
+	"github.com/pmdroid/sledge/internal/termstyle"
 )
 
 const version = "0.0.0-dev"
@@ -54,6 +55,7 @@ func cmdRun(args []string) int {
 	dur := fs.String("duration", "", "")
 	shared := fs.Bool("http-shared-pool", false, "")
 	progress := fs.Bool("progress", false, "")
+	color := fs.String("color", "auto", "terminal colors: auto, always, never")
 	insecure := fs.Bool("insecure-log-secrets", false, "")
 	var outPath string
 	fs.StringVar(&outPath, "out", "", "")
@@ -66,6 +68,11 @@ func cmdRun(args []string) int {
 	}
 	if fs.Arg(0) == "" {
 		fmt.Fprintln(stderr, "run: scenario path required")
+		return 2
+	}
+	colorMode, err := parseColorMode(*color)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	sc, err := scenario.LoadFile(fs.Arg(0), scenario.Options{
@@ -82,6 +89,7 @@ func cmdRun(args []string) int {
 		SharedPool:         *shared || sc.HTTP.Pool == "shared",
 		InsecureLogSecrets: *insecure,
 		Progress:           *progress,
+		Color:              colorMode,
 		Stdout:             stdout,
 		Stderr:             stderr,
 		OutPath:            outPath,
@@ -157,4 +165,17 @@ func cmdAuth(args []string) int {
 		return 2
 	}
 	return 0
+}
+
+func parseColorMode(s string) (termstyle.Mode, error) {
+	switch s {
+	case "auto", "":
+		return termstyle.Auto, nil
+	case "always":
+		return termstyle.Always, nil
+	case "never":
+		return termstyle.Never, nil
+	default:
+		return "", fmt.Errorf("run: invalid --color %q (want auto, always, never)", s)
+	}
 }
