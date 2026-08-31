@@ -39,6 +39,7 @@ sledge <run|validate|version> [scenario]
 | `version` | Print the version string. Exit 0. |
 | `validate <file>` | Load and check a scenario YAML. Exit 0 or 2. |
 | `run <file>` | Run the scenario. Text report on stdout. |
+| `auth <file>` | MCP OAuth authorization-code login. Stores a refresh token. |
 
 Unknown command, missing path, or bad flags: exit 2.
 
@@ -50,6 +51,14 @@ sledge validate --vus 1 --duration 10s scenario.yaml
 ```
 
 `--vus` and `--duration` override file values the same way `run` does, then validate the result.
+
+### `auth`
+
+```
+sledge auth scenario.yaml
+```
+
+For `grant: authorization_code` (or `mcp`). Discovers the authorization server from the MCP URL, registers a public client if `client_id` is empty, and waits on a localhost callback. The refresh token is written under your user state dir as mode `0600`. `sledge run` reads it back. Not per VU.
 
 ### `run`
 
@@ -137,7 +146,7 @@ Validate does not require the env var to be set. `run` looks it up again when it
 
 Optional. Static `Authorization` headers work without an `auth` block.
 
-Supported grants: `client_credentials` and pre-seeded `refresh_token`. There is no browser authorization-code flow.
+Supported grants: `client_credentials`, pre-seeded `refresh_token`, and MCP OAuth `authorization_code` (`mcp` is an alias). Browser login is `sledge auth <scenario>`, once per resource. The refresh token lives in user state (`0600`), not in git. `sledge run` reuses it.
 
 ```yaml
 auth:
@@ -153,9 +162,9 @@ auth:
 
 | Field | Default | Notes |
 |---|---|---|
-| `grant` | required | `client_credentials` or `refresh_token` |
-| `token_url` | required | |
-| `client_id` | required | |
+| `grant` | required | `client_credentials`, `refresh_token`, `authorization_code`, or `mcp` |
+| `token_url` | required except `authorization_code` / `mcp` | Discovered by `sledge auth` when omitted |
+| `client_id` | required except `authorization_code` / `mcp` | Dynamic client registration when omitted |
 | `client_secret` | required for `client_credentials` | |
 | `refresh_token` | required for `refresh_token` | Seeded value. Rotated refresh tokens from the IdP replace it in memory. |
 | `scopes` | empty | Sent as `scope` on client_credentials. Space-joined. |
@@ -246,7 +255,7 @@ Do not turn it on against a real IdP unless you mean to leak tokens.
 
 ## Not v1
 
-stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenarios, JSONPath, Prometheus, JUnit, interactive authorization-code.
+stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenarios, JSONPath, Prometheus, JUnit.
 
 ## Docs
 

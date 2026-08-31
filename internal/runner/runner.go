@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pmdroid/sledge/internal/interp"
+	"github.com/pmdroid/sledge/internal/mcpoauth"
 	"github.com/pmdroid/sledge/internal/metrics"
 	"github.com/pmdroid/sledge/internal/oauth"
 	"github.com/pmdroid/sledge/internal/redact"
@@ -89,33 +90,7 @@ func Run(ctx context.Context, cfg Config) (*Summary, error) {
 	}
 	var tok *oauth.Manager
 	if sc.Auth != nil && sc.Auth.OAuth != nil {
-		oa := sc.Auth.OAuth
-		bound, err := oa.ClientSecret.Resolve(interp.Context{Secrets: lookup})
-		if err != nil {
-			return nil, err
-		}
-		rt, err := oa.RefreshToken.Resolve(interp.Context{Secrets: lookup})
-		if err != nil {
-			return nil, err
-		}
-		cs := bound.Reveal()
-		rts := rt.Reveal()
-		log.Watch(cs)
-		log.Watch(rts)
-		mgr, err := oauth.New(oauth.Config{
-			Grant:              oa.Grant,
-			TokenURL:           oa.TokenURL.Reveal(),
-			ClientID:           oa.ClientID.Reveal(),
-			ClientSecret:       secret.New("CLIENT_SECRET", cs),
-			RefreshToken:       secret.New("REFRESH_TOKEN", rts),
-			Scopes:             oa.Scopes,
-			TokenScope:         oa.TokenScope,
-			RefreshSkew:        oa.RefreshSkew,
-			Warn:               cfg.Stderr,
-			InsecureLogSecrets: false,
-			Log:                log,
-			Client:             shared,
-		})
+		mgr, err := newOAuth(sc, lookup, log, cfg.Stderr, shared)
 		if err != nil {
 			return nil, err
 		}
@@ -260,6 +235,56 @@ type vuOpts struct {
 	iters  *atomic.Int64
 	setups *atomic.Int64
 	errs   *atomic.Int64
+}
+
+func newOAuth(sc *scenario.Scenario, lookup func(string) (string, bool), log *redact.Logger, stderr io.Writer, shared *http.Client) (*oauth.Manager, error) {
+	oa := sc.Auth.OAuth
+	bound, err := oa.ClientSecret.Resolve(interp.Context{Secrets: lookup})
+	if err != nil {
+		return nil, err
+	}
+	rt, err := oa.RefreshToken.Resolve(interp.Context{Secrets: lookup})
+	if err != nil {
+		return nil, err
+	}
+	cs := bound.Reveal()
+	rts := rt.Reveal()
+	tokenURL := oa.TokenURL.Reveal()
+	clientID := oa.ClientID.Reveal()
+	grant := oa.Grant
+	if grant == oauth.GrantAuthCode || grant == oauth.GrantMCP {
+		if rts == "" {
+			rec, err := mcpoauth.Load(sc.Target.URL.Reveal())
+			if err != nil {
+				return nil, &ConfigError{err: err}
+			}
+			rts = rec.RefreshToken
+			if tokenURL == "" {
+				tokenURL = rec.TokenURL
+			}
+			if clientID == "" {
+				clientID = rec.ClientID
+			}
+			log.Watch(rec.AccessToken)
+		}
+		grant = oauth.GrantRefresh
+	}
+	log.Watch(cs)
+	log.Watch(rts)
+	return oauth.New(oauth.Config{
+		Grant:              grant,
+		TokenURL:           tokenURL,
+		ClientID:           clientID,
+		ClientSecret:       secret.New("CLIENT_SECRET", cs),
+		RefreshToken:       secret.New("REFRESH_TOKEN", rts),
+		Scopes:             oa.Scopes,
+		TokenScope:         oa.TokenScope,
+		RefreshSkew:        oa.RefreshSkew,
+		Warn:               stderr,
+		InsecureLogSecrets: false,
+		Log:                log,
+		Client:             shared,
+	})
 }
 
 func newHTTPClient() *http.Client {

@@ -19,8 +19,10 @@ import (
 const (
 	ScopeShared  = "shared"
 	ScopePerVU   = "per_vu"
-	GrantClient  = "client_credentials"
-	GrantRefresh = "refresh_token"
+	GrantClient   = "client_credentials"
+	GrantRefresh  = "refresh_token"
+	GrantAuthCode = "authorization_code"
+	GrantMCP      = "mcp"
 )
 
 type Config struct {
@@ -71,8 +73,12 @@ type issued struct {
 }
 
 func New(cfg Config) (*Manager, error) {
-	switch cfg.Grant {
-	case GrantClient, GrantRefresh:
+	grant := cfg.Grant
+	if grant == GrantMCP {
+		grant = GrantAuthCode
+	}
+	switch grant {
+	case GrantClient, GrantRefresh, GrantAuthCode:
 	default:
 		return nil, fmt.Errorf("unknown oauth grant %q", cfg.Grant)
 	}
@@ -114,7 +120,7 @@ func New(cfg Config) (*Manager, error) {
 		fmt.Fprintln(cfg.Warn, "WARNING: token_scope per_vu fetches one token per VU and may overload the identity provider")
 	}
 	return &Manager{
-		grant:        cfg.Grant,
+		grant:        grant,
 		tokenURL:     cfg.TokenURL,
 		clientID:     cfg.ClientID,
 		clientSecret: cfg.ClientSecret,
@@ -209,7 +215,7 @@ func (m *Manager) slot(vu string) *slot {
 }
 
 func (m *Manager) grantPair(s *slot) (string, string) {
-	if m.grant == GrantRefresh {
+	if m.grant == GrantRefresh || m.grant == GrantAuthCode {
 		rt := s.refresh
 		if rt == "" {
 			rt = m.seedRefresh.Reveal()

@@ -73,9 +73,23 @@ Exit codes: 0 pass, 1 threshold fail, 2 config or auth setup fail, 3 internal.
 
 **Static header.** `auth` omitted. Put `Authorization` (and any extra headers the server documents) under `target.headers`. Arcade headers mode is `Authorization: Bearer ${secret:API_KEY}` plus `Arcade-User-ID`.
 
-**OAuth.** `client_credentials` or a pre-seeded `refresh_token`. Shared token is the default. There is no browser login. If the server only speaks authorization-code MCP OAuth, `sledge` cannot open a session until you have a refresh token or the server is switched to headers.
+**OAuth.** `client_credentials` or a pre-seeded `refresh_token` work as before. Shared token is the default.
 
-A 401 with `Invalid OAuth token` and a `WWW-Authenticate` resource-metadata URL is that second case. The project API key is not an access token.
+If the server only speaks authorization-code MCP OAuth (401 plus `WWW-Authenticate` with `resource_metadata=`), the project API key is not an access token. Use:
+
+```yaml
+auth:
+  oauth:
+    grant: authorization_code
+    token_scope: shared
+```
+
+```bash
+sledge auth examples/first-run.yaml
+sledge run --vus 1 --duration 30s examples/first-run.yaml
+```
+
+`sledge auth` discovers the protected-resource and authorization-server metadata, registers a public client if `client_id` is empty, and opens a localhost callback for the authorization-code + PKCE login. The refresh token is written under your user state dir (`$SLEDGE_STATE_DIR/tokens` or `UserConfigDir/sledge/tokens`) as mode `0600`. It is not committed. `sledge run` reuses that file. Auth is once per resource, not per VU.
 
 ## Protocol versions
 
