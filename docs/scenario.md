@@ -69,7 +69,7 @@ Unsupported `version`: `unsupported version N`.
 
 `headers` is a string map. Values go through the interpolator. Secrets are allowed here.
 
-The client also sets `Accept: application/json, text/event-stream`, `Content-Type: application/json` on POST, `MCP-Protocol-Version` (`2026-07-28` or `2025-11-25`), and `Mcp-Session-Id` after initialize. Initialize offers `2026-07-28` first, with `_meta` and `Mcp-Method` (and `Mcp-Name` on named calls). Any protocol error on that offer is retried as `2025-11-25`. Later requests use the negotiated version. HTTP 202 counts as success. OAuth, if configured, sets `Authorization: Bearer …` and will overwrite a header of the same name.
+The client also sets `Accept: application/json, text/event-stream`, `Content-Type: application/json` on POST, `MCP-Protocol-Version` (`2026-07-28` or `2025-11-25`), and `User-Agent: sledge/0.0.0-dev` unless `target.headers` already has `User-Agent`. Initialize offers `2026-07-28` first, with `_meta` on every request plus `Mcp-Method` (and `Mcp-Name` on named calls). That version is stateless: `Mcp-Session-Id` is not sent, and Close does not DELETE. If initialize fails, the client tries `server/discover` before falling back to `2025-11-25`. Classic `2025-11-25` still uses a session id, sends `notifications/initialized`, and DELETEs on close. HTTP 202 counts as success. OAuth, if configured, sets `Authorization: Bearer …` and will overwrite a header of the same name.
 
 ## HTTP pool
 
@@ -89,13 +89,13 @@ http:
 
 Omit `auth` for static headers only.
 
-`auth.oauth.grant`: `client_credentials` or `refresh_token`. Anything else, including authorization-code: `unknown oauth grant`.
+`auth.oauth.grant`: `client_credentials`, `refresh_token`, `authorization_code`, or `mcp` (`mcp` is an alias for `authorization_code`). Anything else: `unknown oauth grant`.
 
 `token_scope`: `shared` (default) or `per_vu`. `per-vu` is stored as `per_vu`.
 
 `refresh_skew` parses as a Go duration. Empty or zero becomes `30s`.
 
-`client_credentials` requires `client_secret` as text or `${secret:…}`. `refresh_token` requires `refresh_token` the same way.
+`client_credentials` requires `token_url`, `client_id`, and `client_secret` as text or `${secret:…}`. `refresh_token` requires `token_url`, `client_id`, and `refresh_token` the same way. `authorization_code` / `mcp` leave `token_url` and `client_id` optional; `sledge auth` discovers them and stores a refresh token. `sledge run` loads that store (or a YAML `refresh_token` if you set one).
 
 ## Workload
 

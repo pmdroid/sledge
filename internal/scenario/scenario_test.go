@@ -70,6 +70,41 @@ func TestHTTPPool(t *testing.T) {
 	}
 }
 
+func TestAuthCodeGrantOptionalFields(t *testing.T) {
+	y := `version: 1
+target:
+  url: https://example.com/mcp
+  transport: streamable-http
+auth:
+  oauth:
+    grant: authorization_code
+    token_scope: shared
+workload:
+  model: closed
+  vus: 1
+  duration: 1s
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`
+	sc, err := Load(strings.NewReader(y), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.Auth.OAuth.Grant != "authorization_code" {
+		t.Fatalf("grant %q", sc.Auth.OAuth.Grant)
+	}
+	y = strings.Replace(y, "authorization_code", "mcp", 1)
+	sc, err = Load(strings.NewReader(y), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.Auth.OAuth.Grant != "mcp" {
+		t.Fatalf("grant %q", sc.Auth.OAuth.Grant)
+	}
+}
+
 func TestCLIOverrides(t *testing.T) {
 	t.Setenv("CLIENT_ID", "client")
 	sc, err := Load(strings.NewReader(validYAML), Options{VUs: 3, Duration: "15s", LookupEnv: os.LookupEnv})

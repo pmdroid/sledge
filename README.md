@@ -8,7 +8,7 @@
 
 Closed-model VUs. One session per VU by default. Per-VU HTTP clients by default. Shared OAuth token by default. Initialize is implicit.
 
-Start here: [docs/getting-started.md](docs/getting-started.md). First run is 1 VU. Keep real URLs and keys out of git.
+First run is 1 VU. Keep real URLs and keys out of git. Longer notes: [docs/getting-started.md](docs/getting-started.md).
 
 ## Install
 
@@ -39,6 +39,7 @@ sledge <run|validate|version> [scenario]
 | `version` | Print the version string. Exit 0. |
 | `validate <file>` | Load and check a scenario YAML. Exit 0 or 2. |
 | `run <file>` | Run the scenario. Text report on stdout. |
+| `auth <file>` | MCP OAuth authorization-code login. Stores a refresh token. |
 
 Unknown command, missing path, or bad flags: exit 2.
 
@@ -50,6 +51,14 @@ sledge validate --vus 1 --duration 10s scenario.yaml
 ```
 
 `--vus` and `--duration` override file values the same way `run` does, then validate the result.
+
+### `auth`
+
+```
+sledge auth scenario.yaml
+```
+
+For `grant: authorization_code` (or `mcp`). Discovers the authorization server from the MCP URL, registers a public client if `client_id` is empty, and waits on a localhost callback. The refresh token is written under your user state dir as mode `0600`. `sledge run` reads it back. Not per VU.
 
 ### `run`
 
@@ -69,17 +78,21 @@ sledge run --http-shared-pool --out report.json scenario.yaml
 
 ## First run
 
-Keep the first run at 1 VU. Point `target.url` at your MCP endpoint. Do not commit real hostnames, tokens, or keys.
+Copy [examples/first-run.yaml](examples/first-run.yaml). The host and secrets stay in the environment.
 
 ```yaml
 version: 1
 target:
-  url: https://example.com/mcp
+  url: ${env:MCP_URL}
   transport: streamable-http
+  headers:
+    Authorization: Bearer ${secret:API_KEY}
+    Arcade-User-ID: ${env:ARCADE_USER_ID}
 workload:
   model: closed
   vus: 1
-  duration: 10s
+  duration: 30s
+  iterations: 1
   session:
     mode: per_vu
 steps:
@@ -87,11 +100,15 @@ steps:
 ```
 
 ```bash
-sledge validate scenario.yaml
-sledge run --vus 1 --duration 10s scenario.yaml
+export MCP_URL='https://example.com/mcp'
+export API_KEY='your-token'
+export ARCADE_USER_ID='you@example.com'
+
+sledge validate examples/first-run.yaml
+sledge run --vus 1 --duration 30s examples/first-run.yaml
 ```
 
-A fuller file with OAuth, secrets, and thresholds is in [docs/scenario.md](docs/scenario.md).
+`iterations: 1` is initialize, one pass over the steps, then close. Drop `Bearer ` if the server wants the raw key. For OAuth instead of a static header, see [docs/getting-started.md](docs/getting-started.md). Full YAML: [docs/scenario.md](docs/scenario.md).
 
 ## Scenario YAML
 
@@ -129,7 +146,7 @@ Validate does not require the env var to be set. `run` looks it up again when it
 
 Optional. Static `Authorization` headers work without an `auth` block.
 
-Supported grants: `client_credentials` and pre-seeded `refresh_token`. There is no browser authorization-code flow.
+Supported grants: `client_credentials`, pre-seeded `refresh_token`, and MCP OAuth `authorization_code` (`mcp` is an alias). Browser login is `sledge auth <scenario>`, once per resource. The refresh token lives in user state (`0600`), not in git. `sledge run` reuses it.
 
 ```yaml
 auth:
@@ -145,9 +162,9 @@ auth:
 
 | Field | Default | Notes |
 |---|---|---|
-| `grant` | required | `client_credentials` or `refresh_token` |
-| `token_url` | required | |
-| `client_id` | required | |
+| `grant` | required | `client_credentials`, `refresh_token`, `authorization_code`, or `mcp` |
+| `token_url` | required except `authorization_code` / `mcp` | Discovered by `sledge auth` when omitted |
+| `client_id` | required except `authorization_code` / `mcp` | Dynamic client registration when omitted |
 | `client_secret` | required for `client_credentials` | |
 | `refresh_token` | required for `refresh_token` | Seeded value. Rotated refresh tokens from the IdP replace it in memory. |
 | `scopes` | empty | Sent as `scope` on client_credentials. Space-joined. |
@@ -238,7 +255,7 @@ Do not turn it on against a real IdP unless you mean to leak tokens.
 
 ## Not v1
 
-stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenarios, JSONPath, Prometheus, JUnit, interactive authorization-code.
+stdio, legacy SSE as a transport, arrival-rate, distributed workers, JS scenarios, JSONPath, Prometheus, JUnit.
 
 ## Docs
 

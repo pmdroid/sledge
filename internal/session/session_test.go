@@ -70,13 +70,72 @@ func TestJSONSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqs := srv.Requests()
-	if reqs[len(reqs)-1].Method != http.MethodDelete {
-		t.Fatalf("last method %s", reqs[len(reqs)-1].Method)
+	if reqs[len(reqs)-1].Method == http.MethodDelete {
+		t.Fatal("2026-07-28 close must not DELETE")
 	}
 	for i, rec := range reqs {
 		if rec.Header.Get("X-Team") != "platform" {
 			t.Fatalf("request %d missing X-Team", i)
 		}
+		if rec.Header.Get("User-Agent") != UserAgent {
+			t.Fatalf("request %d User-Agent %q", i, rec.Header.Get("User-Agent"))
+		}
+		if rec.Method == http.MethodPost && rec.Header.Get("Mcp-Session-Id") != "" {
+			var msg map[string]any
+			_ = json.Unmarshal(rec.Body, &msg)
+			if msg["method"] != "initialize" {
+				t.Fatalf("request %d sent Mcp-Session-Id on %v", i, msg["method"])
+			}
+		}
+	}
+}
+
+func TestClassicSession2025(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON, Versions: []string{Proto20251125}})
+	t.Cleanup(srv.Close)
+	c := New(Config{URL: srv.URL()})
+	ctx := context.Background()
+	if _, err := c.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.Protocol() != Proto20251125 {
+		t.Fatalf("protocol %q", c.Protocol())
+	}
+	if _, err := c.Call(ctx, "tools/list", map[string]any{}, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reqs := srv.Requests()
+	if reqs[len(reqs)-1].Method != http.MethodDelete {
+		t.Fatalf("last method %s", reqs[len(reqs)-1].Method)
+	}
+	var listed bool
+	for _, rec := range reqs {
+		var msg map[string]any
+		_ = json.Unmarshal(rec.Body, &msg)
+		if msg["method"] == "tools/list" && rec.Header.Get("Mcp-Session-Id") == "" {
+			t.Fatal("2025-11-25 tools/list missing session")
+		}
+		if msg["method"] == "tools/list" {
+			listed = true
+		}
+	}
+	if !listed {
+		t.Fatal("no tools/list")
+	}
+}
+
+func TestDefaultUserAgentOverride(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	c := New(Config{URL: srv.URL(), Headers: map[string]string{"User-Agent": "custom/1"}})
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.Requests()[0].Header.Get("User-Agent"); got != "custom/1" {
+		t.Fatalf("User-Agent %q", got)
 	}
 }
 
@@ -185,9 +244,24 @@ func TestNegotiateOlderSupportedVersion(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var msg struct {
 			ID     int64          `json:"id"`
+			Method string         `json:"method"`
 			Params map[string]any `json:"params"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&msg)
+		if msg.Method == "notifications/initialized" || msg.Method == "server/discover" {
+			if msg.Method == "server/discover" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      msg.ID,
+					"error":   map[string]any{"code": -32601, "message": "Method not found"},
+				})
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		requested, _ := msg.Params["protocolVersion"].(string)
 		seen = append(seen, requested)
 		w.Header().Set("Content-Type", "application/json")
@@ -229,9 +303,24 @@ func TestFallbackOnInvalidParams(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var msg struct {
 			ID     int64          `json:"id"`
+			Method string         `json:"method"`
 			Params map[string]any `json:"params"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&msg)
+		if msg.Method == "notifications/initialized" || msg.Method == "server/discover" {
+			if msg.Method == "server/discover" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      msg.ID,
+					"error":   map[string]any{"code": -32601, "message": "Method not found"},
+				})
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		requested, _ := msg.Params["protocolVersion"].(string)
 		seen = append(seen, requested)
 		w.Header().Set("Content-Type", "application/json")
@@ -299,20 +388,95 @@ func TestAcceptedStatus(t *testing.T) {
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
+		var msg struct {
+			ID     int64  `json:"id"`
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&msg)
+		if msg.Method == "notifications/initialized" {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Mcp-Session-Id", "s1")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"jsonrpc": "2.0",
-			"id":      1,
-			"result":  map[string]any{"protocolVersion": Proto20260728},
+			"id":      msg.ID,
+			"result":  map[string]any{"protocolVersion": Proto20251125},
 		})
+	}))
+	t.Cleanup(ts.Close)
+	c := New(Config{URL: ts.URL})
+	c.proto = Proto20251125
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDiscoverFallback(t *testing.T) {
+	var methods []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var msg struct {
+			ID     int64  `json:"id"`
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&msg)
+		methods = append(methods, msg.Method)
+		w.Header().Set("Content-Type", "application/json")
+		if msg.Method == "initialize" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      msg.ID,
+				"error":   map[string]any{"code": -32602, "message": "initialize is not used"},
+			})
+			return
+		}
+		if msg.Method == "server/discover" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      msg.ID,
+				"result":  map[string]any{"protocolVersion": Proto20260728, "capabilities": map[string]any{}},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
 	}))
 	t.Cleanup(ts.Close)
 	c := New(Config{URL: ts.URL})
 	if _, err := c.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if c.Protocol() != Proto20260728 {
+		t.Fatalf("protocol %q", c.Protocol())
+	}
+	if len(methods) < 2 || methods[0] != "initialize" || methods[1] != "server/discover" {
+		t.Fatalf("methods %v", methods)
+	}
+}
+
+func TestCloseNoSession(t *testing.T) {
+	c := New(Config{URL: "http://127.0.0.1:1"})
 	if err := c.Close(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWWWAuthenticate(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="mcp", resource_metadata="https://example.com/.well-known/oauth-protected-resource"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(ts.Close)
+	c := New(Config{URL: ts.URL})
+	res, err := c.Initialize(context.Background())
+	if TagOf(err) != TagAuth {
+		t.Fatalf("tag %q err %v", TagOf(err), err)
+	}
+	if res == nil || res.WWWAuthenticate == "" {
+		t.Fatal("missing WWW-Authenticate")
 	}
 }

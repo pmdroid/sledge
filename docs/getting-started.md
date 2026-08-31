@@ -55,7 +55,7 @@ export ARCADE_USER_ID='you@example.com'
 
 If the server wants a static header and no `Bearer ` prefix, drop the word `Bearer` and keep `${secret:API_KEY}`. If it wants OAuth instead of a static key, omit `Authorization` and add an `auth.oauth` block. See [scenario.md](scenario.md).
 
-Some fronts reject Go's default User-Agent (Cloudflare 1010). Set `User-Agent` in `target.headers` if initialize comes back as HTTP 403 with a browser-signature error.
+The client sends `User-Agent: sledge/0.0.0-dev` unless you set `User-Agent` in `target.headers`. That is enough to get past Cloudflare 1010 on fronts that reject Go's default. Override it if a host wants a different string.
 
 ## What a good run looks like
 
@@ -73,13 +73,27 @@ Exit codes: 0 pass, 1 threshold fail, 2 config or auth setup fail, 3 internal.
 
 **Static header.** `auth` omitted. Put `Authorization` (and any extra headers the server documents) under `target.headers`. Arcade headers mode is `Authorization: Bearer ${secret:API_KEY}` plus `Arcade-User-ID`.
 
-**OAuth.** `client_credentials` or a pre-seeded `refresh_token`. Shared token is the default. There is no browser login. If the server only speaks authorization-code MCP OAuth, `sledge` cannot open a session until you have a refresh token or the server is switched to headers.
+**OAuth.** `client_credentials` or a pre-seeded `refresh_token` work as before. Shared token is the default.
 
-A 401 with `Invalid OAuth token` and a `WWW-Authenticate` resource-metadata URL is that second case. The project API key is not an access token.
+If the server only speaks authorization-code MCP OAuth (401 plus `WWW-Authenticate` with `resource_metadata=`), the project API key is not an access token. Use:
+
+```yaml
+auth:
+  oauth:
+    grant: authorization_code
+    token_scope: shared
+```
+
+```bash
+sledge auth examples/first-run.yaml
+sledge run --vus 1 --duration 30s examples/first-run.yaml
+```
+
+`sledge auth` discovers the protected-resource and authorization-server metadata, registers a public client if `client_id` is empty, and opens a localhost callback for the authorization-code + PKCE login. The refresh token is written under your user state dir (`$SLEDGE_STATE_DIR/tokens` or `UserConfigDir/sledge/tokens`) as mode `0600`. It is not committed. `sledge run` reuses that file. Auth is once per resource, not per VU.
 
 ## Protocol versions
 
-Initialize offers `2026-07-28` first (`_meta`, `Mcp-Method`, `Mcp-Name` on named calls). If that handshake is a protocol error, it retries `2025-11-25`. Later requests use whichever version the server accepted.
+Initialize offers `2026-07-28` first (`_meta` on every request, `Mcp-Method`, `Mcp-Name` on named calls, no session id). If initialize fails, it tries `server/discover`, then `2025-11-25`. Classic `2025-11-25` still uses a session and `notifications/initialized`.
 
 Servers that only speak `2025-06-18` or `2025-03-26` will fail initialize. That is intentional.
 

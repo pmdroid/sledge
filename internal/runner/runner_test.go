@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
+	"github.com/pmdroid/sledge/internal/fakes/token"
+	"github.com/pmdroid/sledge/internal/mcpoauth"
 	"github.com/pmdroid/sledge/internal/scenario"
 )
 
@@ -276,6 +279,82 @@ steps:
 	}
 	if sum.Failures.Assertion == 0 {
 		t.Fatalf("assertion %d failures %+v", sum.Failures.Assertion, sum.Failures)
+	}
+}
+
+func TestAuthCodeFromStore(t *testing.T) {
+	idp := token.New(token.Options{Public: true})
+	t.Cleanup(idp.Close)
+	seed := "rt_saved"
+	idp.SeedRefresh(seed)
+	mcp := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(mcp.Close)
+	mcp.RequireAccess(idp.ValidAccess)
+	t.Setenv("SLEDGE_STATE_DIR", t.TempDir())
+	if err := mcpoauth.Save(mcpoauth.Record{
+		Resource:     mcp.URL(),
+		TokenURL:     idp.URL(),
+		ClientID:     idp.ClientID(),
+		RefreshToken: seed,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	y := fmt.Sprintf(`version: 1
+target:
+  url: %s
+  transport: streamable-http
+auth:
+  oauth:
+    grant: authorization_code
+    token_scope: shared
+workload:
+  model: closed
+  vus: 1
+  duration: 200ms
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`, mcp.URL())
+	sc := mustLoad(t, y)
+	sum, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Errors != 0 {
+		t.Fatalf("errors %d", sum.Errors)
+	}
+}
+
+func TestAuthCodeMissingStore(t *testing.T) {
+	t.Setenv("SLEDGE_STATE_DIR", t.TempDir())
+	y := `version: 1
+target:
+  url: http://127.0.0.1:1/mcp
+  transport: streamable-http
+auth:
+  oauth:
+    grant: mcp
+    token_scope: shared
+workload:
+  model: closed
+  vus: 1
+  duration: 1s
+  iterations: 1
+  session:
+    mode: per_vu
+steps:
+  - tools/list: {}
+`
+	sc := mustLoad(t, y)
+	_, err := Run(context.Background(), Config{Scenario: sc, Stdout: &bytes.Buffer{}})
+	if err == nil {
+		t.Fatal("expected config error")
+	}
+	var cerr *ConfigError
+	if !errors.As(err, &cerr) {
+		t.Fatalf("err %T %v", err, err)
 	}
 }
 

@@ -114,6 +114,31 @@ func TestRefreshRotationMCP(t *testing.T) {
 	}
 }
 
+func TestAuthCodeGrantRefreshes(t *testing.T) {
+	idp := token.New(token.Options{Public: true})
+	t.Cleanup(idp.Close)
+	seed := "rt_auth"
+	idp.SeedRefresh(seed)
+	mgr, err := New(Config{
+		Grant:        GrantAuthCode,
+		TokenURL:     idp.URL(),
+		ClientID:     idp.ClientID(),
+		RefreshToken: secret.New("REFRESH", seed),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.Token(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(idp.Requests()); n != 1 {
+		t.Fatalf("token requests %d", n)
+	}
+	if idp.Requests()[0].Form.Get("grant_type") != GrantRefresh {
+		t.Fatalf("grant %q", idp.Requests()[0].Form.Get("grant_type"))
+	}
+}
+
 func TestTokenEndpointFailureTaggedAuth(t *testing.T) {
 	idp := token.New(token.Options{})
 	t.Cleanup(idp.Close)

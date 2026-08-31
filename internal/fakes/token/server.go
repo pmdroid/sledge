@@ -21,6 +21,7 @@ type Options struct {
 	ClientSecret  string
 	ExpiresIn     int
 	RotateRefresh bool
+	Public        bool
 }
 
 type Recorded struct {
@@ -37,6 +38,7 @@ type Server struct {
 	clientSecret string
 	expiresIn    int
 	rotate       bool
+	public       bool
 	mu           sync.Mutex
 	reqs         []Recorded
 	refresh      map[string]string
@@ -49,13 +51,14 @@ func New(opts Options) *Server {
 		clientSecret: opts.ClientSecret,
 		expiresIn:    opts.ExpiresIn,
 		rotate:       opts.RotateRefresh,
+		public:       opts.Public,
 		refresh:      map[string]string{},
 		access:       map[string]struct{}{},
 	}
 	if s.clientID == "" {
 		s.clientID = DefaultClientID
 	}
-	if s.clientSecret == "" {
+	if s.clientSecret == "" && !s.public {
 		s.clientSecret = DefaultClientSecret
 	}
 	if s.expiresIn == 0 {
@@ -138,7 +141,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if u, p, ok := r.BasicAuth(); ok {
 		cid, csec = u, p
 	}
-	if cid != s.clientID || csec != s.clientSecret {
+	if cid != s.clientID || (!s.public && csec != s.clientSecret) {
 		oauthError(w, http.StatusUnauthorized, "invalid_client", "bad client")
 		return
 	}
