@@ -17,6 +17,7 @@ const (
 	Proto20251125 = "2025-11-25"
 
 	RPCUnsupportedVersion = -32022
+	UserAgent             = "sledge/0.0.0-dev"
 )
 
 // SupportedVersions is newest first. Initialize offers the first entry, then
@@ -290,6 +291,9 @@ func (c *Client) Close(ctx context.Context) error {
 func (c *Client) applyHeaders(ctx context.Context, req *http.Request) error {
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", UserAgent)
 	}
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("MCP-Protocol-Version", c.version())

@@ -122,6 +122,30 @@ func TestAuthInject(t *testing.T) {
 	}
 }
 
+func TestDefaultUserAgentOverride(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	c := New(Config{URL: srv.URL(), Headers: map[string]string{"User-Agent": "custom/1"}})
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.Requests()[0].Header.Get("User-Agent"); got != "custom/1" {
+		t.Fatalf("User-Agent %q", got)
+	}
+}
+
+func TestDefaultUserAgent(t *testing.T) {
+	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
+	t.Cleanup(srv.Close)
+	c := New(Config{URL: srv.URL()})
+	if _, err := c.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.Requests()[0].Header.Get("User-Agent"); got != UserAgent {
+		t.Fatalf("User-Agent %q", got)
+	}
+}
+
 func TestAuthInjectError(t *testing.T) {
 	srv := mcphttp.New(mcphttp.Options{Mode: mcphttp.ModeJSON})
 	t.Cleanup(srv.Close)

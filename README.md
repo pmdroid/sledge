@@ -8,7 +8,7 @@
 
 Closed-model VUs. One session per VU by default. Per-VU HTTP clients by default. Shared OAuth token by default. Initialize is implicit.
 
-Start here: [docs/getting-started.md](docs/getting-started.md). First run is 1 VU. Keep real URLs and keys out of git.
+First run is 1 VU. Keep real URLs and keys out of git. Longer notes: [docs/getting-started.md](docs/getting-started.md).
 
 ## Install
 
@@ -69,17 +69,21 @@ sledge run --http-shared-pool --out report.json scenario.yaml
 
 ## First run
 
-Keep the first run at 1 VU. Point `target.url` at your MCP endpoint. Do not commit real hostnames, tokens, or keys.
+Copy [examples/first-run.yaml](examples/first-run.yaml). The host and secrets stay in the environment.
 
 ```yaml
 version: 1
 target:
-  url: https://example.com/mcp
+  url: ${env:MCP_URL}
   transport: streamable-http
+  headers:
+    Authorization: Bearer ${secret:API_KEY}
+    Arcade-User-ID: ${env:ARCADE_USER_ID}
 workload:
   model: closed
   vus: 1
-  duration: 10s
+  duration: 30s
+  iterations: 1
   session:
     mode: per_vu
 steps:
@@ -87,11 +91,15 @@ steps:
 ```
 
 ```bash
-sledge validate scenario.yaml
-sledge run --vus 1 --duration 10s scenario.yaml
+export MCP_URL='https://example.com/mcp'
+export API_KEY='your-token'
+export ARCADE_USER_ID='you@example.com'
+
+sledge validate examples/first-run.yaml
+sledge run --vus 1 --duration 30s examples/first-run.yaml
 ```
 
-A fuller file with OAuth, secrets, and thresholds is in [docs/scenario.md](docs/scenario.md).
+`iterations: 1` is initialize, one pass over the steps, then close. Drop `Bearer ` if the server wants the raw key. For OAuth instead of a static header, see [docs/getting-started.md](docs/getting-started.md). Full YAML: [docs/scenario.md](docs/scenario.md).
 
 ## Scenario YAML
 
