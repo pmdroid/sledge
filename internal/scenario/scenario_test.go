@@ -87,6 +87,9 @@ workload:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 `
 	sc, err := Load(strings.NewReader(y), Options{})
 	if err != nil {
@@ -102,6 +105,24 @@ steps:
 	}
 	if sc.Auth.OAuth.Grant != "mcp" {
 		t.Fatalf("grant %q", sc.Auth.OAuth.Grant)
+	}
+}
+
+func TestRequireToolCall(t *testing.T) {
+	y := `version: 1
+target:
+  url: https://example.com/mcp
+  transport: streamable-http
+workload:
+  model: closed
+  vus: 1
+  duration: 1s
+steps:
+  - tools/list: {}
+`
+	_, err := Load(strings.NewReader(y), Options{})
+	if err == nil || !strings.Contains(err.Error(), "tools/call") {
+		t.Fatalf("err %v", err)
 	}
 }
 

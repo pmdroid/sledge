@@ -69,6 +69,9 @@ target:
     mode: per_vu
 steps:
   - tools/list: {}
+  - tools/call:
+      name: search
+      arguments: { query: hello }
 %s`, w.mcp.URL(), headers, vus, dur, extra)
 	path := filepath.Join(dir, "scenario.yaml")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {

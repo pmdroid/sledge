@@ -53,6 +53,7 @@ func cmdRun(args []string) int {
 	vus := fs.Int("vus", 0, "")
 	dur := fs.String("duration", "", "")
 	shared := fs.Bool("http-shared-pool", false, "")
+	progress := fs.Bool("progress", false, "")
 	insecure := fs.Bool("insecure-log-secrets", false, "")
 	var outPath string
 	fs.StringVar(&outPath, "out", "", "")
@@ -80,6 +81,7 @@ func cmdRun(args []string) int {
 		Scenario:           sc,
 		SharedPool:         *shared || sc.HTTP.Pool == "shared",
 		InsecureLogSecrets: *insecure,
+		Progress:           *progress,
 		Stdout:             stdout,
 		Stderr:             stderr,
 		OutPath:            outPath,
