@@ -79,7 +79,7 @@ A 401 with `Invalid OAuth token` and a `WWW-Authenticate` resource-metadata URL 
 
 ## Protocol versions
 
-Initialize offers `2026-07-28` first (`_meta`, `Mcp-Method`, `Mcp-Name` on named calls). If that handshake is a protocol error, it retries `2025-11-25`. Later requests use whichever version the server accepted.
+Initialize offers `2026-07-28` first (`_meta` on every request, `Mcp-Method`, `Mcp-Name` on named calls, no session id). If initialize fails, it tries `server/discover`, then `2025-11-25`. Classic `2025-11-25` still uses a session and `notifications/initialized`.
 
 Servers that only speak `2025-06-18` or `2025-03-26` will fail initialize. That is intentional.
 

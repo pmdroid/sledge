@@ -27,6 +27,7 @@ type Options struct {
 	Mode      Mode
 	SlowDelay time.Duration
 	Delay     time.Duration
+	Versions  []string
 }
 
 type Recorded struct {
@@ -50,6 +51,8 @@ type Server struct {
 	authOK         func(string) bool
 	requireHeaders map[string]string
 	always401      bool
+	wwwAuth        string
+	versions       []string
 }
 
 func New(opts Options) *Server {
@@ -59,6 +62,7 @@ func New(opts Options) *Server {
 		delay:    opts.Delay,
 		sessions: map[string]struct{}{},
 		seen:     map[string]struct{}{},
+		versions: opts.Versions,
 	}
 	if s.slow == 0 {
 		s.slow = 20 * time.Millisecond
@@ -104,6 +108,12 @@ func (s *Server) RequireHeader(key, val string) {
 func (s *Server) AlwaysUnauthorized() {
 	s.mu.Lock()
 	s.always401 = true
+	s.mu.Unlock()
+}
+
+func (s *Server) SetWWWAuthenticate(v string) {
+	s.mu.Lock()
+	s.wwwAuth = v
 	s.mu.Unlock()
 }
 
@@ -165,13 +175,20 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	always401 := s.always401
 	authOK := s.authOK
+	wwwAuth := s.wwwAuth
 	reqHeaders := map[string]string{}
 	for k, v := range s.requireHeaders {
 		reqHeaders[k] = v
 	}
 	s.mu.Unlock()
-	if always401 {
+	write401 := func() {
+		if wwwAuth != "" {
+			w.Header().Set("WWW-Authenticate", wwwAuth)
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}
+	if always401 {
+		write401()
 		return
 	}
 	if authOK != nil {
@@ -181,13 +198,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			tok = strings.TrimSpace(h[len("Bearer "):])
 		}
 		if tok == "" || !authOK(tok) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			write401()
 			return
 		}
 	}
 	for k, v := range reqHeaders {
 		if r.Header.Get(k) != v {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			write401()
 			return
 		}
 	}
@@ -222,8 +239,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	method, _ := msg["method"].(string)
 	id := msg["id"]
 	sid := r.Header.Get("Mcp-Session-Id")
+	proto := requestProtocol(r, msg)
 
-	if method != "initialize" {
+	if strings.HasPrefix(method, "notifications/") {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	if method != "initialize" && method != "server/discover" && proto != "2026-07-28" {
 		s.mu.Lock()
 		_, ok := s.sessions[sid]
 		s.mu.Unlock()
@@ -239,7 +262,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		if params, ok := msg["params"].(map[string]any); ok {
 			requested, _ = params["protocolVersion"].(string)
 		}
-		if !supportedProtocol(requested) {
+		if !s.supportedProtocol(requested) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -250,7 +273,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 					"message": "Unsupported protocol version",
 					"data": map[string]any{
 						"requested": requested,
-						"supported": []string{"2026-07-28", "2025-11-25"},
+						"supported": s.supportedList(),
 					},
 				},
 			})
@@ -269,6 +292,23 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			"id":      id,
 			"result": map[string]any{
 				"protocolVersion": requested,
+				"capabilities":    map[string]any{"tools": map[string]any{}},
+				"serverInfo":      map[string]any{"name": "fake-mcp", "version": "0.0.0"},
+			},
+		})
+	case "server/discover":
+		ver := proto
+		if !s.supportedProtocol(ver) {
+			ver = "2026-07-28"
+			if !s.supportedProtocol(ver) {
+				ver = s.supportedList()[0]
+			}
+		}
+		s.writeRPC(w, "", map[string]any{
+			"jsonrpc": "2.0",
+			"id":      id,
+			"result": map[string]any{
+				"protocolVersion": ver,
 				"capabilities":    map[string]any{"tools": map[string]any{}},
 				"serverInfo":      map[string]any{"name": "fake-mcp", "version": "0.0.0"},
 			},
@@ -394,8 +434,37 @@ func flush(w http.ResponseWriter) {
 	}
 }
 
-func supportedProtocol(v string) bool {
-	return v == "2026-07-28" || v == "2025-11-25"
+func (s *Server) supportedList() []string {
+	if len(s.versions) > 0 {
+		return s.versions
+	}
+	return []string{"2026-07-28", "2025-11-25"}
+}
+
+func (s *Server) supportedProtocol(v string) bool {
+	for _, x := range s.supportedList() {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+func requestProtocol(r *http.Request, msg map[string]any) string {
+	if v := r.Header.Get("MCP-Protocol-Version"); v != "" {
+		return v
+	}
+	if params, ok := msg["params"].(map[string]any); ok {
+		if meta, ok := params["_meta"].(map[string]any); ok {
+			if v, ok := meta["io.modelcontextprotocol/protocolVersion"].(string); ok {
+				return v
+			}
+		}
+		if v, ok := params["protocolVersion"].(string); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 func newID() string {
