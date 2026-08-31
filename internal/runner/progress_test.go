@@ -10,6 +10,7 @@ import (
 
 	"github.com/pmdroid/sledge/internal/fakes/mcphttp"
 	"github.com/pmdroid/sledge/internal/metrics"
+	"github.com/pmdroid/sledge/internal/termstyle"
 )
 
 func TestWriteProgressLine(t *testing.T) {
@@ -18,7 +19,7 @@ func TestWriteProgressLine(t *testing.T) {
 	iters.Store(3)
 	coll := metrics.NewCollector()
 	coll.RecordOp("tools/list", "", 10*time.Millisecond, 10*time.Millisecond, nil)
-	writeProgressLine(&buf, time.Now().Add(-2*time.Second), &iters, coll)
+	writeProgressLine(&buf, time.Now().Add(-2*time.Second), &iters, coll, termstyle.New(&buf, termstyle.Never))
 	if !strings.Contains(buf.String(), "iters=3") {
 		t.Fatalf("got %q", buf.String())
 	}
